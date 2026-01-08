@@ -1,0 +1,29 @@
+{
+  "name": "nexia-ui",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    }
+  ],
+  "package-specs": [
+    {
+      "module": "es6",
+      "in-source": true
+    }
+  ],
+  "suffix": ".res.js",
+  "bs-dependencies": [
+    "@rescript/core",
+    "@rescript/react",
+    "rescript-tea",
+    "cadre-tea-router"
+  ],
+  "jsx": {
+    "version": 4,
+    "mode": "automatic"
+  },
+  "warnings": {
+    "number": "+a-4-9-27-40-42-44-48-50-61-103"
+  }
+}

@@ -1,0 +1,373 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Nexia - Cross-platform Knowledge Management */
+
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --text-primary: #eee;
+  --text-secondary: #aaa;
+  --accent: #e94560;
+  --accent-hover: #ff6b6b;
+  --border: #333;
+  --note-bg: #1f1f3a;
+  --selected: rgba(233, 69, 96, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-left, .toolbar-center, .toolbar-right {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar button {
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.toolbar button:hover {
+  background: var(--bg-tertiary);
+}
+
+.toolbar button.btn-active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dirty-indicator {
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+/* Main content */
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header h2 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.search-box {
+  padding: 0.5rem 1rem;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+
+.search-box .btn-clear {
+  position: absolute;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.note-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.note-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.note-item.selected {
+  background: var(--selected);
+  border-left: 3px solid var(--accent);
+}
+
+.note-title {
+  font-weight: 500;
+}
+
+.note-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.sidebar-footer {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Content area */
+.content-area {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* List view */
+.list-view {
+  height: 100%;
+  padding: 1rem;
+}
+
+.note-editor {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.note-title-input {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.note-title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.note-content-input {
+  width: 100%;
+  min-height: 400px;
+  padding: 1rem;
+  background: var(--note-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.note-content-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.note-metadata {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 2rem;
+}
+
+.note-links {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.note-links h4 {
+  margin-bottom: 0.5rem;
+}
+
+.note-links ul {
+  list-style: none;
+}
+
+.note-links li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+}
+
+/* Canvas view */
+.canvas-view {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
+
+.canvas-note {
+  position: absolute;
+  width: 200px;
+  min-height: 100px;
+  background: var(--note-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.canvas-note:hover {
+  border-color: var(--accent);
+}
+
+.canvas-note.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.canvas-note-title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.canvas-note-preview {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.canvas-controls {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.canvas-controls button {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.canvas-controls button:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover) !important;
+}
+
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.btn-remove:hover {
+  color: var(--accent);
+}
+
+/* Error banner */
+.error-banner {
+  padding: 0.75rem 1rem;
+  background: rgba(233, 69, 96, 0.2);
+  border-bottom: 1px solid var(--accent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.error-banner button {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
