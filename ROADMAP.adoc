@@ -1,0 +1,652 @@
+= Nexia Roadmap
+:toc: macro
+:toc-title: Phases
+:toclevels: 2
+:icons: font
+
+This document outlines the development phases for Nexia, from MVP to full-featured knowledge management platform.
+
+toc::[]
+
+== Phase 0: Foundation
+
+Establish the cross-platform development infrastructure.
+
+=== Objectives
+
+* Set up monorepo structure
+* Configure Rust workspace for core engine
+* Initialize ReScript project with TEA
+* Set up Tauri for desktop builds
+* Establish CI/CD pipeline
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Project scaffold
+|Monorepo with core/, ui/, desktop/, web/ directories
+|[ ]
+
+|Rust core crate
+|Empty library with Cargo.toml configured
+|[ ]
+
+|ReScript setup
+|rescript.json with rescript-tea, cadre-tea-router deps
+|[ ]
+
+|Tauri shell
+|Basic Tauri app that loads ReScript UI
+|[ ]
+
+|Deno tasks
+|dev, build, test, lint commands
+|[ ]
+
+|GitHub Actions
+|CI for Rust, ReScript, cross-platform builds
+|[ ]
+
+|AGPL-3.0 license
+|LICENSE file
+|[ ]
+|===
+
+== Phase 1: MVP - Basic Note Management
+
+A working desktop app that can create, view, and link notes.
+
+=== Objectives
+
+* Implement note data model in Rust
+* Build TEA application state
+* Create basic note editor
+* Implement local file storage
+* Build note list view
+
+=== Data Model
+
+[source,rust]
+----
+struct Note {
+    id: Uuid,
+    title: String,
+    content: String,
+    position: Option<Point2D>,  // For spatial view
+    created_at: DateTime<Utc>,
+    modified_at: DateTime<Utc>,
+    links: Vec<Uuid>,           // Outgoing links
+    prototype: Option<Uuid>,    // Inheritance
+    attributes: HashMap<String, Value>,
+}
+
+struct Notebook {
+    notes: HashMap<Uuid, Note>,
+    // Reverse index for incoming links
+    backlinks: HashMap<Uuid, Vec<Uuid>>,
+}
+----
+
+=== TEA Messages
+
+[source,rescript]
+----
+type msg =
+  | CreateNote
+  | DeleteNote(noteId)
+  | UpdateNoteTitle(noteId, string)
+  | UpdateNoteContent(noteId, string)
+  | MoveNote(noteId, position)
+  | LinkNotes(fromId, toId)
+  | UnlinkNotes(fromId, toId)
+  | SelectNote(noteId)
+  | Search(query)
+  | SaveNotebook
+  | LoadNotebook(path)
+----
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Note struct
+|Rust data model with serde serialization
+|[ ]
+
+|Notebook operations
+|CRUD operations in Rust core
+|[ ]
+
+|TEA Model
+|ReScript model type mirroring Rust structs
+|[ ]
+
+|TEA Update
+|Message handlers for all note operations
+|[ ]
+
+|Note editor
+|Basic textarea for note content
+|[ ]
+
+|Note list view
+|Sidebar showing all notes
+|[ ]
+
+|JSON storage
+|Save/load notebook as JSON file
+|[ ]
+
+|Tauri commands
+|Bridge between UI and Rust core
+|[ ]
+
+|Desktop build
+|Working Linux/macOS/Windows binaries
+|[ ]
+|===
+
+== Phase 2: Spatial Canvas
+
+The core differentiator - visual arrangement of notes.
+
+=== Objectives
+
+* Implement infinite canvas with pan/zoom
+* Render notes as cards on canvas
+* Drag-and-drop note positioning
+* Visual link rendering between notes
+* Minimap for navigation
+
+=== Canvas Architecture
+
+[source]
+----
+┌─────────────────────────────────────────┐
+│              Viewport                    │
+│  ┌─────────────────────────────────────┐│
+│  │         Canvas Transform            ││
+│  │  ┌───┐      ┌───┐                   ││
+│  │  │ A │──────│ B │                   ││
+│  │  └───┘      └───┘                   ││
+│  │       \                             ││
+│  │        \    ┌───┐                   ││
+│  │         ────│ C │                   ││
+│  │             └───┘                   ││
+│  └─────────────────────────────────────┘│
+│  [─────]  Minimap                        │
+└─────────────────────────────────────────┘
+----
+
+=== Rendering Strategy
+
+. **HTML Canvas** for links and grid (performance)
+. **DOM elements** for note cards (accessibility, text selection)
+. **CSS transforms** for pan/zoom (GPU acceleration)
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Canvas component
+|ReScript wrapper for HTML canvas
+|[ ]
+
+|Pan/zoom
+|Mouse drag to pan, scroll to zoom
+|[ ]
+
+|Note cards
+|DOM elements positioned on canvas
+|[ ]
+
+|Drag-and-drop
+|Reposition notes with mouse
+|[ ]
+
+|Link rendering
+|Bezier curves between linked notes
+|[ ]
+
+|Selection
+|Click to select, shift-click multi-select
+|[ ]
+
+|Minimap
+|Overview of entire canvas
+|[ ]
+
+|Keyboard nav
+|Arrow keys to move between notes
+|[ ]
+|===
+
+== Phase 3: Search & Links
+
+Making the knowledge graph useful.
+
+=== Objectives
+
+* Full-text search across all notes
+* Instant search-as-you-type
+* Backlink panel (what links to this note?)
+* Quick link insertion while typing
+* Graph visualization mode
+
+=== Search Architecture
+
+[source]
+----
+User types → Debounce → Rust (tantivy) → Results → UI
+                            ↓
+                     Index updated on
+                     note save (async)
+----
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Search index
+|tantivy integration in Rust core
+|[ ]
+
+|Incremental indexing
+|Update index on note changes
+|[ ]
+
+|Search UI
+|Command palette style search
+|[ ]
+
+|Backlinks panel
+|Show notes linking to current note
+|[ ]
+
+|Wiki-style links
+|`[[Note Title]]` syntax in content
+|[ ]
+
+|Link autocomplete
+|Suggest notes while typing `[[`
+|[ ]
+
+|Graph view
+|Force-directed graph of all notes
+|[ ]
+|===
+
+== Phase 4: Agents & Automation
+
+Intelligent organization that works for you.
+
+=== Objectives
+
+* Persistent saved searches (Agents)
+* Agents automatically collect matching notes
+* Smart folders based on attributes
+* Prototype inheritance
+* Computed attributes
+
+=== Agent Model
+
+[source,rust]
+----
+struct Agent {
+    id: Uuid,
+    name: String,
+    query: Query,           // Search criteria
+    action: AgentAction,    // What to do with matches
+    schedule: Schedule,     // When to run
+}
+
+enum AgentAction {
+    Collect,                // Just show matches
+    SetAttribute(String, Value),
+    AddLink(Uuid),
+    ApplyPrototype(Uuid),
+}
+----
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Agent data model
+|Rust structs for agents
+|[ ]
+
+|Query language
+|Simple DSL for agent queries
+|[ ]
+
+|Agent execution
+|Background task running agents
+|[ ]
+
+|Agent UI
+|Create, edit, view agent results
+|[ ]
+
+|Prototypes
+|Notes that serve as templates
+|[ ]
+
+|Attribute inheritance
+|Child notes inherit prototype attrs
+|[ ]
+
+|Computed attributes
+|Attributes calculated from content
+|[ ]
+|===
+
+== Phase 5: Mobile & Web
+
+True cross-platform deployment.
+
+=== Objectives
+
+* iOS app via Tauri mobile
+* Android app via Tauri mobile
+* Progressive Web App
+* Offline-first with service worker
+* Optional sync between devices
+
+=== Platform Matrix
+
+[cols="1,1,1,1", options="header"]
+|===
+|Feature |Desktop |Mobile |Web
+
+|Spatial canvas
+|Full
+|Simplified
+|Full
+
+|File storage
+|Filesystem
+|App sandbox
+|IndexedDB/OPFS
+
+|Search
+|Native tantivy
+|WASM tantivy
+|WASM tantivy
+
+|Sync
+|Optional
+|Optional
+|Optional
+|===
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Tauri mobile config
+|iOS and Android build setup
+|[ ]
+
+|Touch gestures
+|Pinch zoom, touch drag
+|[ ]
+
+|Mobile UI adaptations
+|Responsive layouts
+|[ ]
+
+|PWA manifest
+|Web app installable
+|[ ]
+
+|Service worker
+|Offline functionality
+|[ ]
+
+|IndexedDB storage
+|Browser persistence layer
+|[ ]
+
+|WASM core
+|Rust compiled to WASM for web
+|[ ]
+|===
+
+== Phase 6: Rich Content
+
+Beyond plain text.
+
+=== Objectives
+
+* Rich text editing (bold, italic, headers)
+* Embedded images
+* Code blocks with syntax highlighting
+* Tables
+* Transclusion (embed one note in another)
+
+=== Editor Options
+
+[cols="1,2,2", options="header"]
+|===
+|Option |Pros |Cons
+
+|ProseMirror
+|Mature, extensible, collaborative
+|Complex, heavy
+
+|TipTap
+|Modern ProseMirror wrapper
+|Still heavy
+
+|Custom Markdown
+|Lightweight, familiar
+|Limited formatting
+
+|Blocks (Notion-style)
+|Flexible, modern UX
+|Complex to implement
+|===
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Rich text editor
+|WYSIWYG editing
+|[ ]
+
+|Markdown support
+|Parse/render Markdown
+|[ ]
+
+|Image embedding
+|Drag-drop images into notes
+|[ ]
+
+|Code blocks
+|Syntax highlighted code
+|[ ]
+
+|Tables
+|Basic table support
+|[ ]
+
+|Transclusion
+|Embed note content in another
+|[ ]
+|===
+
+== Phase 7: Timeline & Views
+
+Multiple ways to see your knowledge.
+
+=== Objectives
+
+* Timeline view for temporal notes
+* Attribute browser (filter by attributes)
+* Outline view (hierarchical)
+* Dashboard view (customizable widgets)
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Timeline view
+|Notes arranged on time axis
+|[ ]
+
+|Date parsing
+|Extract dates from note content
+|[ ]
+
+|Attribute browser
+|Filter/group by attributes
+|[ ]
+
+|Outline view
+|Hierarchical note tree
+|[ ]
+
+|Dashboard
+|Configurable widget layout
+|[ ]
+|===
+
+== Phase 8: Intelligence
+
+AI-assisted knowledge management.
+
+=== Objectives
+
+* Entity extraction (people, places, dates)
+* Auto-linking suggestions
+* Summarization
+* Question answering over your notes
+* Local-first AI (no cloud required)
+
+=== AI Strategy
+
+* **Local models** preferred (Ollama, llama.cpp)
+* **Cloud optional** for more capability
+* **Privacy first** - no data leaves device by default
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Entity extraction
+|NER for people, places, dates
+|[ ]
+
+|Auto-linking
+|Suggest links based on content
+|[ ]
+
+|Summarization
+|Generate note summaries
+|[ ]
+
+|Q&A
+|Ask questions about your notes
+|[ ]
+
+|Local LLM integration
+|Ollama/llama.cpp support
+|[ ]
+|===
+
+== Phase 9: Ecosystem
+
+Integration with the wider world.
+
+=== Objectives
+
+* Import from other tools (Notion, Roam, Obsidian)
+* Export to multiple formats
+* Browser extension for web clipping
+* API for extensions
+* Plugin system
+
+=== Deliverables
+
+[cols="1,3,1", options="header"]
+|===
+|Item |Description |Status
+
+|Notion import
+|Import Notion exports
+|[ ]
+
+|Obsidian import
+|Import Obsidian vaults
+|[ ]
+
+|HTML export
+|Export as static website
+|[ ]
+
+|Markdown export
+|Export as Markdown files
+|[ ]
+
+|OPML export
+|Export outline structure
+|[ ]
+
+|Web clipper
+|Browser extension
+|[ ]
+
+|Plugin API
+|Extension points for customization
+|[ ]
+|===
+
+== Success Metrics
+
+=== MVP Success Criteria
+
+* Can create 100+ notes without performance issues
+* Can link notes bidirectionally
+* Can save and reload notebook
+* Works on Linux, macOS, Windows
+* Note content survives app restart
+
+=== Full Product Success Criteria
+
+* Handles 10,000+ notes smoothly
+* Canvas remains responsive at all scales
+* Search returns results in <100ms
+* Mobile apps feel native
+* Sync works reliably between devices
+* Community contributions happening
+
+== Non-Goals
+
+Things we explicitly will NOT do:
+
+* **Real-time collaboration** - Local-first means single-user focus
+* **Cloud-only storage** - Always have local option
+* **Subscription pricing** - One-time purchase or free
+* **Vendor lock-in** - Data always exportable
+* **Feature parity with everything** - Better to do fewer things well

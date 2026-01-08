@@ -1,0 +1,232 @@
+= Nexia
+:toc: macro
+:toc-title: Contents
+:toclevels: 3
+:icons: font
+:source-highlighter: rouge
+
+**Cross-platform personal knowledge management with spatial notes, relationships, and intelligent agents.**
+
+image:https://img.shields.io/badge/License-AGPL%203.0-blue.svg[License: AGPL-3.0, link=LICENSE]
+image:https://img.shields.io/badge/Platform-Desktop%20%7C%20Mobile%20%7C%20Web-green.svg[Platform]
+image:https://img.shields.io/badge/ReScript-TEA-orange.svg[ReScript TEA]
+image:https://img.shields.io/badge/Backend-Rust-red.svg[Rust]
+
+toc::[]
+
+== What is Nexia?
+
+Nexia is an open-source, cross-platform knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
+
+* **Spatial Canvas** - Arrange notes visually, see relationships at a glance
+* **Linked Notes** - First-class bidirectional links between ideas
+* **Intelligent Agents** - Persistent queries that continuously organize your knowledge
+* **Prototype Inheritance** - Notes inherit attributes from templates
+* **Local-First** - Your data lives on your device, in readable formats
+* **True Cross-Platform** - Same app on Desktop, Mobile, and Web
+
+== Philosophy
+
+[quote]
+Your knowledge is yours. Not in a cloud you don't control. Not locked in a proprietary format. Not dependent on a company's survival.
+
+Nexia follows the **local-first** philosophy:
+
+. Data stored as human-readable files (JSON/XML)
+. Works offline by default
+. Optional sync is additive, never required
+. Export to open formats (HTML, Markdown, OPML)
+
+== Architecture
+
+[source]
+----
+┌─────────────────────────────────────────────────────────┐
+│                    ReScript + TEA                        │
+│              (rescript-tea, cadre-tea-router)            │
+│                   Single UI Codebase                     │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+   ┌─────────┐  ┌─────────┐  ┌─────────────┐
+   │  Tauri  │  │  Tauri  │  │   Browser   │
+   │ Desktop │  │ Mobile  │  │  (WASM/JS)  │
+   └────┬────┘  └────┬────┘  └──────┬──────┘
+        │            │              │
+        └────────────┼──────────────┘
+                     ▼
+         ┌───────────────────────┐
+         │      Rust Core        │
+         │  Graph · Search · IO  │
+         └───────────────────────┘
+----
+
+=== Tech Stack
+
+[cols="1,2,2", options="header"]
+|===
+|Layer |Technology |Purpose
+
+|UI Framework
+|ReScript + TEA
+|Type-safe functional UI with The Elm Architecture
+
+|Routing
+|cadre-tea-router
+|URL-based navigation, deep linking
+
+|Desktop/Mobile
+|Tauri 2.0
+|Native shell for Linux, macOS, Windows, iOS, Android
+
+|Web
+|WASM + PWA
+|Browser deployment, offline support
+
+|Core Engine
+|Rust
+|Graph operations, search indexing, file I/O
+
+|Configuration
+|Nickel (bunsenite)
+|Type-safe configuration and schema definitions
+
+|Storage
+|Local files + IndexedDB
+|Platform-adaptive persistence
+|===
+
+=== Why This Stack?
+
+**ReScript + TEA** gives us:
+
+* Exhaustive pattern matching (compiler catches missed states)
+* Pure update functions (easy testing, time-travel debugging)
+* Single source of truth (no stale UI bugs)
+* Type-safe message passing
+
+**Tauri 2.0** gives us:
+
+* True cross-platform (desktop AND mobile from one codebase)
+* Small binary sizes (~10MB vs Electron's ~150MB)
+* Native performance
+* Secure by default (no Node.js attack surface)
+
+**Rust** gives us:
+
+* Memory safety without GC pauses
+* Excellent graph libraries (petgraph)
+* Fast full-text search (tantivy)
+* WASM compilation for browser
+
+== Features
+
+=== MVP (v0.1)
+
+* [ ] Create, edit, delete notes
+* [ ] Spatial canvas with drag-and-drop
+* [ ] Bidirectional linking between notes
+* [ ] Basic search
+* [ ] Local file storage (JSON)
+* [ ] Desktop app (Linux, macOS, Windows)
+
+=== Future
+
+* [ ] Agents (persistent queries)
+* [ ] Prototype inheritance
+* [ ] Timeline view
+* [ ] Mobile apps (iOS, Android)
+* [ ] Web app (PWA)
+* [ ] Rich text editing
+* [ ] Entity extraction (names, dates, places)
+* [ ] Export (HTML, Markdown, OPML)
+* [ ] Optional sync between devices
+
+== Project Structure
+
+[source]
+----
+nexia/
+├── core/                 # Rust - graph engine, search, storage
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs
+│       ├── graph.rs      # Note relationships
+│       ├── search.rs     # Full-text indexing
+│       └── storage.rs    # File I/O
+├── ui/                   # ReScript - TEA application
+│   ├── rescript.json
+│   └── src/
+│       ├── Main.res      # Entry point
+│       ├── Model.res     # Application state
+│       ├── Update.res    # Message handling
+│       ├── View.res      # Rendering
+│       ├── Canvas.res    # Spatial view
+│       └── Note.res      # Note component
+├── desktop/              # Tauri desktop configuration
+│   ├── tauri.conf.json
+│   └── src/
+│       └── main.rs       # Tauri commands
+├── mobile/               # Tauri mobile configuration
+│   ├── ios/
+│   └── android/
+├── web/                  # Browser/PWA build
+│   ├── index.html
+│   └── service-worker.js
+├── config/               # Nickel schemas
+│   └── note-schema.ncl
+└── docs/
+    └── ROADMAP.adoc
+----
+
+== Getting Started
+
+=== Prerequisites
+
+* https://deno.land/[Deno] (package management, scripts)
+* https://www.rust-lang.org/tools/install[Rust] (core engine)
+* https://tauri.app/v1/guides/getting-started/prerequisites[Tauri prerequisites] (platform-specific)
+
+=== Development
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/hyperpolymath/nexia-list.git
+cd nexia-list
+
+# Install dependencies
+deno task setup
+
+# Run development server
+deno task dev
+
+# Build for production
+deno task build
+----
+
+== Contributing
+
+Contributions welcome! Please read our link:CONTRIBUTING.adoc[Contributing Guide] first.
+
+=== Development Principles
+
+. **Local-first always** - Never require network for core functionality
+. **Platform parity** - Features should work on all platforms
+. **Type safety** - Leverage ReScript's type system fully
+. **Performance** - Keep UI responsive with 10,000+ notes
+. **Simplicity** - Resist feature creep, do fewer things well
+
+== License
+
+AGPL-3.0-or-later. See link:LICENSE[LICENSE] for details.
+
+Your knowledge is yours. The code to manage it should be too.
+
+== Acknowledgments
+
+* https://www.eastgate.com/Tinderbox/[Tinderbox] - The inspiration for spatial note-taking
+* https://rescript-lang.org/[ReScript] - Type-safe language compiling to JS
+* https://tauri.app/[Tauri] - Cross-platform app framework
+* https://github.com/hyperpolymath[hyperpolymath] ecosystem - ReScript-TEA, rescript-tauri, bunsenite
