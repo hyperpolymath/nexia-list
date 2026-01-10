@@ -1,4 +1,8 @@
 = Nexia
+image:https://img.shields.io/badge/license-PMPL--1.0-blue.svg[License,link="https://github.com/hyperpolymath/palimpsest-license"]
+
+
+
 :toc: macro
 :toc-title: Contents
 :toclevels: 3
@@ -7,7 +11,6 @@
 
 **Cross-platform personal knowledge management with spatial notes, relationships, and intelligent agents.**
 
-image:https://img.shields.io/badge/License-AGPL%203.0-blue.svg[License: AGPL-3.0, link=LICENSE]
 image:https://img.shields.io/badge/Platform-Desktop%20%7C%20Mobile%20%7C%20Web-green.svg[Platform]
 image:https://img.shields.io/badge/ReScript-TEA-orange.svg[ReScript TEA]
 image:https://img.shields.io/badge/Backend-Rust-red.svg[Rust]
@@ -220,7 +223,7 @@ Contributions welcome! Please read our link:CONTRIBUTING.adoc[Contributing Guide
 
 == License
 
-AGPL-3.0-or-later. See link:LICENSE[LICENSE] for details.
+PMPL-1.0-or-later. See link:LICENSE[LICENSE] for details.
 
 Your knowledge is yours. The code to manage it should be too.
 
