@@ -230,3 +230,8 @@ Your knowledge is yours. The code to manage it should be too.
 * https://rescript-lang.org/[ReScript] - Type-safe language compiling to JS
 * https://tauri.app/[Tauri] - Cross-platform app framework
 * https://github.com/hyperpolymath[hyperpolymath] ecosystem - ReScript-TEA, rescript-tauri, bunsenite
+
+
+== Architecture
+
+See link:TOPOLOGY.md[TOPOLOGY.md] for a visual architecture map and completion dashboard.

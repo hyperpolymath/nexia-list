@@ -1,16 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nexia Core - Knowledge graph engine
+
+//! Nexia Core — Knowledge Graph and Note Engine.
 //!
-//! This crate provides the core data structures and operations for Nexia,
-//! a cross-platform personal knowledge management tool.
+//! This crate provides the foundational data structures for the Nexia 
+//! ecosystem. It treats notes as nodes in a multi-dimensional graph, 
+//! supporting bidirectional linking and spatial arrangement.
+//!
+//! ARCHITECTURE:
+//! - `note`: Individual atomic unit of information.
+//! - `notebook`: A logical collection/subgraph of notes.
+//! - `storage`: Content-addressable persistence layer.
 
 pub mod note;
 pub mod notebook;
 pub mod storage;
 
+// PUBLIC API: Re-export primary types for use in Desktop (Tauri) and Web consumers.
 pub use note::{Note, NoteId, Point2D};
 pub use notebook::Notebook;
 pub use storage::Storage;
 
-/// Library version
+/// Crate version from Cargo metadata.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
