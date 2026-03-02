@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
 = Nexia Roadmap
 :toc: macro
 :toc-title: Phases
@@ -50,7 +51,7 @@ Establish the cross-platform development infrastructure.
 |CI for Rust, ReScript, cross-platform builds
 |[ ]
 
-|AGPL-3.0 license
+|PMPL-1.0-or-later license
 |LICENSE file
 |[ ]
 |===

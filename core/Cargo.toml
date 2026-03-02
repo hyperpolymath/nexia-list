@@ -3,7 +3,8 @@
 name = "nexia-core"
 version = "0.1.0"
 edition = "2021"
-license = "AGPL-3.0-or-later"
+license = "PMPL-1.0-or-later"
+authors = ["Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"]
 description = "Core engine for Nexia knowledge management"
 repository = "https://github.com/hyperpolymath/nexia-list"
 
@@ -27,3 +28,4 @@ console_error_panic_hook = { version = "0.1", optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1.0"
+tempfile = "3.0"

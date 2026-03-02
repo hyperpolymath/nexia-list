@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# security.txt — https://securitytxt.org/
+# Canonical location: .well-known/security.txt
+
+Contact: mailto:j.d.a.jewell@open.ac.uk
+Preferred-Languages: en
+Canonical: https://github.com/hyperpolymath/nexia-list/.well-known/security.txt
+Policy: https://github.com/hyperpolymath/nexia-list/blob/main/SECURITY.md
+Expires: 2027-03-02T00:00:00Z

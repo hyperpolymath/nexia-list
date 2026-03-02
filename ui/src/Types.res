@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: PMPL-1.0-or-later
 /// Core types for Nexia UI - mirrors Rust core types
 
 /// Unique identifier for a note

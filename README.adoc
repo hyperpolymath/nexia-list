@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
 = Nexia
 :toc: macro
 :toc-title: Contents
@@ -208,7 +209,7 @@ deno task build
 
 == Contributing
 
-Contributions welcome! Please read our link:CONTRIBUTING.adoc[Contributing Guide] first.
+Contributions welcome! Please read our link:CONTRIBUTING.md[Contributing Guide] first.
 
 === Development Principles
 

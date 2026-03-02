@@ -1,4 +1,5 @@
-# RSR-template-repo - Editor Configuration
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# nexia-list - Editor Configuration
 # https://editorconfig.org
 
 root = true
@@ -57,6 +58,18 @@ indent_size = 2
 indent_size = 2
 
 [*.nix]
+indent_size = 2
+
+[*.css]
+indent_size = 2
+
+[*.html]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
+[*.toml]
 indent_size = 2
 
 [Justfile]

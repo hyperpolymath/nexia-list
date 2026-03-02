@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# humans.txt — https://humanstxt.org/
+
+/* TEAM */
+Name: Jonathan D.A. Jewell
+Role: Lead Maintainer
+Site: https://github.com/hyperpolymath
+Location: United Kingdom
+
+/* SITE */
+Software: Nexia — Cross-platform personal knowledge management
+Standards: PMPL-1.0-or-later, RSR (Rhodium Standard Repository)
+Components: Rust core, ReScript TEA UI, Tauri 2.0 desktop/mobile, WASM/PWA web

@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# CODEOWNERS — Default code ownership for nexia-list
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for all files
+* @hyperpolymath
+
+# Rust core engine
+/core/ @hyperpolymath
+
+# ReScript UI
+/ui/ @hyperpolymath
+
+# Tauri desktop/mobile shell
+/desktop/ @hyperpolymath
+
+# Web / PWA
+/web/ @hyperpolymath
+
+# Workflows and CI
+/.github/ @hyperpolymath
+
+# Machine-readable metadata
+/.machine_readable/ @hyperpolymath
