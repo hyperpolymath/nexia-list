@@ -11,6 +11,7 @@
 //! - `notebook`: A logical collection/subgraph of notes.
 //! - `storage`: Content-addressable persistence layer.
 
+#![forbid(unsafe_code)]
 pub mod note;
 pub mod notebook;
 pub mod storage;
