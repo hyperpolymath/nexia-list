@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# Clade declaration — part of the gv-clade-index registry
+# See: https://github.com/hyperpolymath/gv-clade-index
+
+[identity]
+uuid = "631b3774-30f7-59d9-b3a5-72b540677f82"
+primary-forge = "github"
+primary-owner = "hyperpolymath"
+canonical-name = "nexia-list"
+prefixed-name = "ap-nexia-list"
+
+[clade]
+primary = "ap"
+secondary = []
+assigned = "2026-03-16"
+rationale = ""
+
+[forges]
+github = "hyperpolymath/nexia-list"
+gitlab = "hyperpolymath/nexia-list"
+bitbucket = "hyperpolymath/nexia-list"
+
+[lineage]
+type = "standalone"
+parent = "Personal knowledge management — ReScript TEA + Tauri 2.0"
+born = "2026-03-16"
