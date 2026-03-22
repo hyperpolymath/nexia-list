@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
+= Nexia — Show Me The Receipts
+:toc:
+:icons: font
+
+The README makes claims. This file backs them up.
+
+[quote, README]
+____
+Nexia is an open-source, cross-platform knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
+____
+
+== Technology Choices
+
+[cols="1,2"]
+|===
+| Technology | Learn More
+
+| **Deno** | https://deno.land
+|===
+
+== File Map
+
+[cols="1,2"]
+|===
+| Path | What's There
+
+| `test(s)/` | Test suite
+|===
+
+== Questions?
+
+Open an issue or reach out directly — happy to explain anything in more detail.
