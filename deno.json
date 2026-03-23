@@ -6,7 +6,6 @@
     "dev": "cd ui && deno task dev",
     "build": "cd ui && deno task build",
     "build:rust": "cd core && cargo build --release",
-    "build:tauri": "cd desktop && cargo tauri build",
     "gossamer:dev": "cd desktop && gossamer dev",
     "gossamer:build": "cd desktop && gossamer build",
     "test": "cd core && cargo test",

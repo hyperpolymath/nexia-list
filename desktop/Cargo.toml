@@ -5,19 +5,11 @@ version = "0.1.0"
 edition = "2021"
 license = "PMPL-1.0-or-later"
 authors = ["Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"]
-description = "Nexia desktop application"
-
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+description = "Nexia desktop application — Gossamer webview shell"
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-fs = "2"
-tauri-plugin-dialog = "2"
+gossamer-rs = { path = "../../gossamer/bindings/rust" }
 nexia-core = { path = "../core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-[features]
-default = ["custom-protocol"]
-custom-protocol = ["tauri/custom-protocol"]
+uuid = { version = "1", features = ["v4"] }

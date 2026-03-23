@@ -1,18 +1,32 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
-//! Nexia desktop application entry point
+// Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+//
+//! Nexia desktop application entry point — Gossamer webview shell.
+//!
+//! All 11 note-management commands are registered via `gossamer_rs::App::command()`.
+//! Each handler receives a `serde_json::Value` payload and returns
+//! `Result<serde_json::Value, String>`. Business logic is identical to the
+//! former Tauri implementation; only the shell layer changed.
 
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use nexia_core::{Notebook, Note, NoteId, Storage, storage::JsonStorage};
-use serde::{Deserialize, Serialize};
+use gossamer_rs::App;
+use nexia_core::{Notebook, Note, Storage, storage::JsonStorage};
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::State;
 
-/// Application state shared across commands
+// =============================================================================
+// Shared application state
+// =============================================================================
+
+/// Application state shared across all command handlers via `Arc`-like
+/// interior mutability (Mutex). Gossamer dispatches commands on a single
+/// thread, so contention is minimal.
 struct AppState {
+    /// The currently loaded notebook.
     notebook: Mutex<Notebook>,
+    /// Path to the on-disk file (None if unsaved).
     file_path: Mutex<Option<PathBuf>>,
+    /// JSON storage backend for save/load operations.
     storage: JsonStorage,
 }
 
@@ -26,218 +40,264 @@ impl Default for AppState {
     }
 }
 
-/// Response wrapper for commands
+// =============================================================================
+// Command response wrapper
+// =============================================================================
+
+/// Uniform envelope returned by every command.
+/// Frontend code expects `{ success, data?, error? }`.
 #[derive(Serialize)]
 struct CommandResponse<T> {
     success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
-impl<T> CommandResponse<T> {
-    fn ok(data: T) -> Self {
-        Self {
+impl<T: Serialize> CommandResponse<T> {
+    /// Successful response containing `data`.
+    fn ok(data: T) -> serde_json::Value {
+        serde_json::to_value(CommandResponse {
             success: true,
             data: Some(data),
             error: None,
-        }
+        })
+        .unwrap_or_else(|e| serde_json::json!({ "success": false, "error": e.to_string() }))
     }
 
-    fn err(message: impl Into<String>) -> Self {
-        Self {
+    /// Error response with a human-readable message.
+    fn err(message: impl Into<String>) -> serde_json::Value {
+        serde_json::to_value(CommandResponse::<()> {
             success: false,
             data: None,
             error: Some(message.into()),
-        }
+        })
+        .unwrap_or_else(|e| serde_json::json!({ "success": false, "error": e.to_string() }))
     }
 }
 
-/// Create a new note
-#[tauri::command]
-fn create_note(state: State<AppState>, title: String) -> CommandResponse<Note> {
-    let mut notebook = state.notebook.lock().unwrap();
-    let note = Note::new(title);
-    let id = note.id;
-    notebook.add_note(note);
+// =============================================================================
+// UUID parsing helper
+// =============================================================================
 
-    match notebook.get_note(&id) {
-        Some(note) => CommandResponse::ok(note.clone()),
-        None => CommandResponse::err("Failed to create note"),
+/// Parse a UUID string from the JSON payload, returning a Gossamer-compatible error.
+fn parse_uuid(payload: &serde_json::Value, key: &str) -> Result<uuid::Uuid, String> {
+    let id_str = payload[key]
+        .as_str()
+        .ok_or_else(|| format!("missing or invalid '{key}' field"))?;
+    uuid::Uuid::parse_str(id_str).map_err(|_| format!("Invalid {key}: {id_str}"))
+}
+
+// =============================================================================
+// Entry point
+// =============================================================================
+
+fn main() -> Result<(), gossamer_rs::Error> {
+    // Shared state wrapped in Arc for multi-handler access.
+    // Gossamer command closures require 'static + Send, so Arc is necessary.
+    let state = std::sync::Arc::new(AppState::default());
+
+    // Create the Gossamer webview window matching gossamer.conf.json dimensions.
+    let mut app = App::new("Nexia", 1200, 800)?;
+
+    // -- create_note ----------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("create_note", move |payload| {
+            let title = payload["title"]
+                .as_str()
+                .unwrap_or("Untitled")
+                .to_string();
+            let mut notebook = st.notebook.lock().unwrap();
+            let note = Note::new(title);
+            let id = note.id;
+            notebook.add_note(note);
+
+            match notebook.get_note(&id) {
+                Some(note) => Ok(CommandResponse::<Note>::ok(note.clone())),
+                None => Ok(CommandResponse::<Note>::err("Failed to create note")),
+            }
+        });
     }
-}
 
-/// Get a note by ID
-#[tauri::command]
-fn get_note(state: State<AppState>, id: String) -> CommandResponse<Note> {
-    let notebook = state.notebook.lock().unwrap();
-    let uuid = match uuid::Uuid::parse_str(&id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid note ID"),
-    };
-
-    match notebook.get_note(&uuid) {
-        Some(note) => CommandResponse::ok(note.clone()),
-        None => CommandResponse::err("Note not found"),
+    // -- get_note -------------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("get_note", move |payload| {
+            let uuid = parse_uuid(&payload, "id")?;
+            let notebook = st.notebook.lock().unwrap();
+            match notebook.get_note(&uuid) {
+                Some(note) => Ok(CommandResponse::<Note>::ok(note.clone())),
+                None => Ok(CommandResponse::<Note>::err("Note not found")),
+            }
+        });
     }
-}
 
-/// Get all notes
-#[tauri::command]
-fn get_all_notes(state: State<AppState>) -> CommandResponse<Vec<Note>> {
-    let notebook = state.notebook.lock().unwrap();
-    let notes: Vec<Note> = notebook.all_notes().cloned().collect();
-    CommandResponse::ok(notes)
-}
-
-/// Update a note's title
-#[tauri::command]
-fn update_note_title(state: State<AppState>, id: String, title: String) -> CommandResponse<Note> {
-    let mut notebook = state.notebook.lock().unwrap();
-    let uuid = match uuid::Uuid::parse_str(&id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid note ID"),
-    };
-
-    if let Some(note) = notebook.get_note_mut(&uuid) {
-        note.title = title;
-        note.touch();
-        CommandResponse::ok(note.clone())
-    } else {
-        CommandResponse::err("Note not found")
+    // -- get_all_notes --------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("get_all_notes", move |_payload| {
+            let notebook = st.notebook.lock().unwrap();
+            let notes: Vec<Note> = notebook.all_notes().cloned().collect();
+            Ok(CommandResponse::<Vec<Note>>::ok(notes))
+        });
     }
-}
 
-/// Update a note's content
-#[tauri::command]
-fn update_note_content(state: State<AppState>, id: String, content: String) -> CommandResponse<Note> {
-    let mut notebook = state.notebook.lock().unwrap();
-    let uuid = match uuid::Uuid::parse_str(&id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid note ID"),
-    };
-
-    if let Some(note) = notebook.get_note_mut(&uuid) {
-        note.content = content;
-        note.touch();
-        CommandResponse::ok(note.clone())
-    } else {
-        CommandResponse::err("Note not found")
+    // -- update_note_title ----------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("update_note_title", move |payload| {
+            let uuid = parse_uuid(&payload, "id")?;
+            let title = payload["title"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let mut notebook = st.notebook.lock().unwrap();
+            if let Some(note) = notebook.get_note_mut(&uuid) {
+                note.title = title;
+                note.touch();
+                Ok(CommandResponse::<Note>::ok(note.clone()))
+            } else {
+                Ok(CommandResponse::<Note>::err("Note not found"))
+            }
+        });
     }
-}
 
-/// Delete a note
-#[tauri::command]
-fn delete_note(state: State<AppState>, id: String) -> CommandResponse<()> {
-    let mut notebook = state.notebook.lock().unwrap();
-    let uuid = match uuid::Uuid::parse_str(&id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid note ID"),
-    };
-
-    match notebook.remove_note(&uuid) {
-        Some(_) => CommandResponse::ok(()),
-        None => CommandResponse::err("Note not found"),
+    // -- update_note_content --------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("update_note_content", move |payload| {
+            let uuid = parse_uuid(&payload, "id")?;
+            let content = payload["content"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let mut notebook = st.notebook.lock().unwrap();
+            if let Some(note) = notebook.get_note_mut(&uuid) {
+                note.content = content;
+                note.touch();
+                Ok(CommandResponse::<Note>::ok(note.clone()))
+            } else {
+                Ok(CommandResponse::<Note>::err("Note not found"))
+            }
+        });
     }
-}
 
-/// Link two notes
-#[tauri::command]
-fn link_notes(state: State<AppState>, from_id: String, to_id: String) -> CommandResponse<()> {
-    let mut notebook = state.notebook.lock().unwrap();
-
-    let from_uuid = match uuid::Uuid::parse_str(&from_id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid source note ID"),
-    };
-
-    let to_uuid = match uuid::Uuid::parse_str(&to_id) {
-        Ok(uuid) => uuid,
-        Err(_) => return CommandResponse::err("Invalid target note ID"),
-    };
-
-    match notebook.link_notes(from_uuid, to_uuid) {
-        Ok(_) => CommandResponse::ok(()),
-        Err(e) => CommandResponse::err(e.to_string()),
+    // -- delete_note ----------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("delete_note", move |payload| {
+            let uuid = parse_uuid(&payload, "id")?;
+            let mut notebook = st.notebook.lock().unwrap();
+            match notebook.remove_note(&uuid) {
+                Some(_) => Ok(CommandResponse::<()>::ok(())),
+                None => Ok(CommandResponse::<()>::err("Note not found")),
+            }
+        });
     }
-}
 
-/// Search notes
-#[tauri::command]
-fn search_notes(state: State<AppState>, query: String) -> CommandResponse<Vec<Note>> {
-    let notebook = state.notebook.lock().unwrap();
-    let results: Vec<Note> = notebook.search(&query).into_iter().cloned().collect();
-    CommandResponse::ok(results)
-}
-
-/// Save notebook to file
-#[tauri::command]
-fn save_notebook(state: State<AppState>, path: Option<String>) -> CommandResponse<String> {
-    let notebook = state.notebook.lock().unwrap();
-    let mut file_path = state.file_path.lock().unwrap();
-
-    let save_path = match path {
-        Some(p) => {
-            let path = PathBuf::from(&p);
-            *file_path = Some(path.clone());
-            path
-        }
-        None => match file_path.as_ref() {
-            Some(p) => p.clone(),
-            None => return CommandResponse::err("No file path specified"),
-        },
-    };
-
-    match state.storage.save(&notebook, &save_path) {
-        Ok(_) => CommandResponse::ok(save_path.display().to_string()),
-        Err(e) => CommandResponse::err(e.to_string()),
+    // -- link_notes -----------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("link_notes", move |payload| {
+            let from_uuid = parse_uuid(&payload, "from_id")?;
+            let to_uuid = parse_uuid(&payload, "to_id")?;
+            let mut notebook = st.notebook.lock().unwrap();
+            match notebook.link_notes(from_uuid, to_uuid) {
+                Ok(_) => Ok(CommandResponse::<()>::ok(())),
+                Err(e) => Ok(CommandResponse::<()>::err(e.to_string())),
+            }
+        });
     }
-}
 
-/// Load notebook from file
-#[tauri::command]
-fn load_notebook(state: State<AppState>, path: String) -> CommandResponse<Notebook> {
-    let path = PathBuf::from(&path);
-
-    match state.storage.load(&path) {
-        Ok(loaded) => {
-            let mut notebook = state.notebook.lock().unwrap();
-            let mut file_path = state.file_path.lock().unwrap();
-            *notebook = loaded.clone();
-            *file_path = Some(path);
-            CommandResponse::ok(loaded)
-        }
-        Err(e) => CommandResponse::err(e.to_string()),
+    // -- search_notes ---------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("search_notes", move |payload| {
+            let query = payload["query"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let notebook = st.notebook.lock().unwrap();
+            let results: Vec<Note> = notebook.search(&query).into_iter().cloned().collect();
+            Ok(CommandResponse::<Vec<Note>>::ok(results))
+        });
     }
-}
 
-/// New notebook
-#[tauri::command]
-fn new_notebook(state: State<AppState>, name: String) -> CommandResponse<()> {
-    let mut notebook = state.notebook.lock().unwrap();
-    let mut file_path = state.file_path.lock().unwrap();
-    *notebook = Notebook::new(name);
-    *file_path = None;
-    CommandResponse::ok(())
-}
+    // -- save_notebook --------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("save_notebook", move |payload| {
+            let notebook = st.notebook.lock().unwrap();
+            let mut file_path = st.file_path.lock().unwrap();
 
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![
-            create_note,
-            get_note,
-            get_all_notes,
-            update_note_title,
-            update_note_content,
-            delete_note,
-            link_notes,
-            search_notes,
-            save_notebook,
-            load_notebook,
-            new_notebook,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+            let save_path = match payload["path"].as_str() {
+                Some(p) => {
+                    let path = PathBuf::from(p);
+                    *file_path = Some(path.clone());
+                    path
+                }
+                None => match file_path.as_ref() {
+                    Some(p) => p.clone(),
+                    None => {
+                        return Ok(CommandResponse::<String>::err("No file path specified"));
+                    }
+                },
+            };
+
+            match st.storage.save(&notebook, &save_path) {
+                Ok(_) => Ok(CommandResponse::<String>::ok(
+                    save_path.display().to_string(),
+                )),
+                Err(e) => Ok(CommandResponse::<String>::err(e.to_string())),
+            }
+        });
+    }
+
+    // -- load_notebook --------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("load_notebook", move |payload| {
+            let path_str = payload["path"]
+                .as_str()
+                .ok_or("missing 'path' field")?;
+            let path = PathBuf::from(path_str);
+
+            match st.storage.load(&path) {
+                Ok(loaded) => {
+                    let mut notebook = st.notebook.lock().unwrap();
+                    let mut file_path = st.file_path.lock().unwrap();
+                    *notebook = loaded.clone();
+                    *file_path = Some(path);
+                    Ok(CommandResponse::<Notebook>::ok(loaded))
+                }
+                Err(e) => Ok(CommandResponse::<Notebook>::err(e.to_string())),
+            }
+        });
+    }
+
+    // -- new_notebook ---------------------------------------------------------
+    {
+        let st = state.clone();
+        app.command("new_notebook", move |payload| {
+            let name = payload["name"]
+                .as_str()
+                .unwrap_or("Untitled")
+                .to_string();
+            let mut notebook = st.notebook.lock().unwrap();
+            let mut file_path = st.file_path.lock().unwrap();
+            *notebook = Notebook::new(name);
+            *file_path = None;
+            Ok(CommandResponse::<()>::ok(()))
+        });
+    }
+
+    // Navigate to the frontend dist directory (served by Gossamer).
+    // gossamer.conf.json specifies frontendDist: "../web/dist"
+    app.navigate("/")?;
+
+    // Run the event loop — blocks until the window is closed.
+    app.run();
+    Ok(())
 }

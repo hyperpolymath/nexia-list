@@ -50,10 +50,10 @@ Nexia follows the **local-first** philosophy:
                       │
         ┌─────────────┼─────────────┐
         ▼             ▼             ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────────┐
-   │  Tauri  │  │  Tauri  │  │   Browser   │
-   │ Desktop │  │ Mobile  │  │  (WASM/JS)  │
-   └────┬────┘  └────┬────┘  └──────┬──────┘
+   ┌──────────┐ ┌──────────┐ ┌─────────────┐
+   │ Gossamer │ │ Gossamer │ │   Browser   │
+   │ Desktop  │ │  Mobile  │ │  (WASM/JS)  │
+   └────┬─────┘ └────┬─────┘ └──────┬──────┘
         │            │              │
         └────────────┼──────────────┘
                      ▼
@@ -78,8 +78,8 @@ Nexia follows the **local-first** philosophy:
 |URL-based navigation, deep linking
 
 |Desktop/Mobile
-|Tauri 2.0
-|Native shell for Linux, macOS, Windows, iOS, Android
+|Gossamer (gossamer-rs)
+|Lightweight webview shell for Linux, macOS, Windows, iOS, Android
 
 |Web
 |WASM + PWA
@@ -107,12 +107,13 @@ Nexia follows the **local-first** philosophy:
 * Single source of truth (no stale UI bugs)
 * Type-safe message passing
 
-**Tauri 2.0** gives us:
+**Gossamer** gives us:
 
 * True cross-platform (desktop AND mobile from one codebase)
-* Small binary sizes (~10MB vs Electron's ~150MB)
-* Native performance
-* Secure by default (no Node.js attack surface)
+* Minimal binary sizes (smaller than Tauri, far smaller than Electron)
+* Native webview performance via Zig FFI
+* Capability-based security model (no implicit permissions)
+* Idris2 ABI-verified interface contracts
 
 **Rust** gives us:
 
@@ -165,11 +166,11 @@ nexia/
 │       ├── View.res      # Rendering
 │       ├── Canvas.res    # Spatial view
 │       └── Note.res      # Note component
-├── desktop/              # Tauri desktop configuration
-│   ├── tauri.conf.json
+├── desktop/              # Gossamer desktop shell
+│   ├── gossamer.conf.json
 │   └── src/
-│       └── main.rs       # Tauri commands
-├── mobile/               # Tauri mobile configuration
+│       └── main.rs       # Gossamer command handlers
+├── mobile/               # Gossamer mobile configuration
 │   ├── ios/
 │   └── android/
 ├── web/                  # Browser/PWA build
@@ -187,7 +188,7 @@ nexia/
 
 * https://deno.land/[Deno] (package management, scripts)
 * https://www.rust-lang.org/tools/install[Rust] (core engine)
-* https://tauri.app/v1/guides/getting-started/prerequisites[Tauri prerequisites] (platform-specific)
+* https://github.com/hyperpolymath/gossamer[Gossamer] (webview shell)
 
 === Development
 
@@ -229,8 +230,8 @@ Your knowledge is yours. The code to manage it should be too.
 
 * https://www.eastgate.com/Tinderbox/[Tinderbox] - The inspiration for spatial note-taking
 * https://rescript-lang.org/[ReScript] - Type-safe language compiling to JS
-* https://tauri.app/[Tauri] - Cross-platform app framework
-* https://github.com/hyperpolymath[hyperpolymath] ecosystem - ReScript-TEA, rescript-tauri, bunsenite
+* https://github.com/hyperpolymath/gossamer[Gossamer] - Lightweight webview shell with Zig FFI
+* https://github.com/hyperpolymath[hyperpolymath] ecosystem - ReScript-TEA, gossamer-rs, bunsenite
 
 
 == Architecture
