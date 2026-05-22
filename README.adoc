@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 = Nexia
 :toc: macro
 :toc-title: Contents
@@ -222,7 +222,7 @@ Contributions welcome! Please read our link:CONTRIBUTING.md[Contributing Guide] 
 
 == License
 
-PMPL-1.0-or-later. See link:LICENSE[LICENSE] for details.
+MPL-2.0. See link:LICENSE[LICENSE] for details.
 
 Your knowledge is yours. The code to manage it should be too.
 

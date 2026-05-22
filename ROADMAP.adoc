@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 = Nexia Roadmap
 :toc: macro
 :toc-title: Phases
@@ -51,7 +51,7 @@ Establish the cross-platform development infrastructure.
 |CI for Rust, ReScript, cross-platform builds
 |[ ]
 
-|PMPL-1.0-or-later license
+|MPL-2.0 license
 |LICENSE file
 |[ ]
 |===

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: PMPL-1.0-or-later
+# SPDX-License-Identifier: MPL-2.0
 # ai.txt — AI agent interaction policy
 # See: https://github.com/hyperpolymath/0-ai-gatekeeper-protocol
 
@@ -17,7 +17,7 @@ Metadata: /.machine_readable/META.scm
 Metadata: /.machine_readable/ECOSYSTEM.scm
 
 # License
-License: PMPL-1.0-or-later
+License: MPL-2.0
 
 # Contact
 Contact: j.d.a.jewell@open.ac.uk

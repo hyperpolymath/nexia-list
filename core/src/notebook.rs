@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Notebook - collection of notes with relationship tracking
 
 use crate::note::{Note, NoteId};

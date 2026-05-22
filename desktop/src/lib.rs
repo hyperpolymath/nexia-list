@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Nexia desktop library (for mobile targets)
 
 #![forbid(unsafe_code)]
