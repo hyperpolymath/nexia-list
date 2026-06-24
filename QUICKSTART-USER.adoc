@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: CC-BY-SA-4.0
 // Template: QUICKSTART-USER.adoc — 5-minute path to working software
 // Replace nexia-list, Nexia List — See README.adoc for details., just run, Nexia List started successfully. with actuals
 = nexia-list — Quick Start for Users
