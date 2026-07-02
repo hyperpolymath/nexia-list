@@ -4,10 +4,10 @@
 /// current working notebook so it survives reloads.
 
 @module("./idb.js") external idbSet: (string, string) => promise<unit> = "idbSet"
-@module("./idb.js") external idbGet: string => promise<Js.Nullable.t<string>> = "idbGet"
+@module("./idb.js") external idbGet: string => promise<Nullable.t<string>> = "idbGet"
 @module("./fileio.js") external downloadText: (string, string) => unit = "downloadText"
 @module("./fileio.js")
-external openTextFile: unit => promise<Js.Nullable.t<string>> = "openTextFile"
+external openTextFile: unit => promise<Nullable.t<string>> = "openTextFile"
 
 let autosaveKey = "nexia.autosave"
 let autosaveDelayMs = 800
@@ -31,7 +31,7 @@ let scheduleAutosave = () => {
 
 let loadAutosave = async (): option<string> => {
   switch await idbGet(autosaveKey) {
-  | value => value->Js.Nullable.toOption
+  | value => value->Nullable.toOption
   | exception _ => None
   }
 }
@@ -43,7 +43,7 @@ let saveToFile = (name: string, json: string) => {
 
 let openFile = async (): option<string> => {
   switch await openTextFile() {
-  | value => value->Js.Nullable.toOption
+  | value => value->Nullable.toOption
   | exception _ => None
   }
 }
