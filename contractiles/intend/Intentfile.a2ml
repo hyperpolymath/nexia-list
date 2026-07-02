@@ -8,7 +8,7 @@ Declared intent and purpose for Nexia List.
 
 ## Purpose
 
-Nexia List — // SPDX-License-Identifier: MPL-2.0
+Nexia List — local-first spatial knowledge management: notes on a spatial canvas with bidirectional links, web-first (Rust core compiled to WASM, ReScript TEA-style UI), data stored as user-readable JSON.
 
 ## Anti-Purpose
 

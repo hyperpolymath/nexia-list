@@ -8,7 +8,7 @@ See README.adoc for overview.
 - `just build` — build the project
 - `just test` — run tests
 - `just doctor` — diagnose issues
-- `just heal` — attempt auto-repair
+- `just run` — start the dev server (http://localhost:5173)
 
 ## Quick Context
 - License: MPL-2.0

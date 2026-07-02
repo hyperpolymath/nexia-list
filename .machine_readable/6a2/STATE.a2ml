@@ -5,10 +5,11 @@
 [metadata]
 project = "nexia-list"
 version = "0.1.0"
-last-updated = "2026-03-15"
+last-updated = "2026-07-02"
 status = "active"
 
 [project-context]
 name = "nexia-list"
-completion-percentage = 0
-phase = "In development"
+completion-percentage = 35
+phase = "active development — web-first build resurrection"
+focus = "wasm core integration (wasm-bindgen bridge to browser), then product CI, tests, canvas drag-and-drop, PWA (service worker)"

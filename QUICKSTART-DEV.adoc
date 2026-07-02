@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
-// Template: QUICKSTART-DEV.adoc — clone → build → test → PR
-// Replace nexia-list, {{BUILD_CMD}}, {{TEST_CMD}}, {{LANG_STACK}} with actuals
+// QUICKSTART-DEV.adoc — clone → build → test → PR
 = nexia-list — Quick Start for Developers
 :toc:
 :toclevels: 2
 
 == Tech Stack
 
-{{LANG_STACK}}
+* **Deno 2** — the only JS toolchain (package management via `deno install`,
+  tasks, dev server; no npm/bun/yarn/pnpm CLIs)
+* **ReScript 11** — TEA-style UI on `@rescript/react`, bundled with esbuild
+* **Rust stable** — core engine (notes, backlinks, search, JSON storage),
+  compiled to WASM via wasm-bindgen for the browser
+* Optional: **Gossamer** desktop shell (external sibling checkout of
+  `hyperpolymath/gossamer`; not built in this repo's CI)
 
 == Set Up Development Environment
 
@@ -18,34 +23,35 @@
 guix shell
 ----
 
-=== Option B: Nix (fallback)
-
-[source,bash]
-----
-nix develop
-----
-
-=== Option C: Manual
+=== Option B: Manual
 
 [source,bash]
 ----
 git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
-just setup-dev
+just setup    # deno task setup + rustup wasm32 target
 ----
 
 == Build
 
 [source,bash]
 ----
-{{BUILD_CMD}}
+deno task build       # ReScript compile + esbuild web bundle
+deno task build:wasm  # Rust core → WASM for the browser
 ----
 
 == Test
 
 [source,bash]
 ----
-{{TEST_CMD}}
+deno task test        # Rust core (cargo test) + UI (deno test)
+----
+
+== Run
+
+[source,bash]
+----
+deno task dev         # dev server on http://localhost:5173
 ----
 
 == Project Structure
@@ -53,15 +59,18 @@ just setup-dev
 [source]
 ----
 nexia-list/
-├── src/                  # Source code
-├── src/abi/              # Idris2 ABI definitions (if applicable)
-├── ffi/zig/              # Zig FFI bridge (if applicable)
-├── tests/                # Test suite
-├── docs/                 # Documentation
-├── .machine_readable/    # Checkpoint files (STATE, META, ECOSYSTEM)
-├── Justfile              # Task runner recipes
+├── core/                 # Rust core engine (12 passing unit tests)
+├── ui/                   # ReScript TEA-style UI
+│   └── src/bindings/     # DOM bindings
+├── scripts/              # Deno build/dev scripts (esbuild)
+├── web/                  # Browser entry + bundle output (dist/)
+├── desktop/              # OPTIONAL Gossamer shell (external dependency)
+├── docs/adr/             # Architecture decision records
+├── tests/                # Cross-cutting tests
+├── .machine_readable/    # Checkpoint files (STATE, META, ECOSYSTEM) + contractiles
+├── Justfile              # Task runner recipes (delegate to deno tasks)
+├── deno.json             # Deno tasks and import map
 ├── guix.scm              # Guix environment
-├── flake.nix             # Nix environment (fallback)
 └── 0-AI-MANIFEST.a2ml    # AI agent entry point
 ----
 
@@ -69,11 +78,14 @@ nexia-list/
 
 [source,bash]
 ----
+just setup          # Install dependencies (+ wasm target)
 just build          # Build the project
+just build-wasm     # Build the WASM core
 just test           # Run tests
+just run            # Start the dev server
+just check          # Deno lint + rustfmt --check + clippy
 just doctor         # Self-diagnostic
-just lint           # Lint and format
-just panic-scan     # Security scan via panic-attacker
+just assail         # Security scan via panic-attacker (if installed)
 just tour           # Guided tour of the codebase
 ----
 
@@ -81,9 +93,9 @@ just tour           # Guided tour of the codebase
 
 [source,bash]
 ----
-just lint           # Format and lint
+just check          # Lint and static checks
 just test           # All tests pass
-just panic-scan     # No new security issues
+deno task fmt       # Format (deno fmt + cargo fmt)
 ----
 
 == Contractile Invariants
@@ -91,7 +103,18 @@ just panic-scan     # No new security issues
 Read `.machine_readable/MUST.contractile` before making changes.
 Key invariants that must never be violated:
 
-{{MUST_INVARIANTS}}
+* **Deno only** — no npm/bun/yarn/pnpm dependencies or CLIs
+* **No new TypeScript, Python, or Go files**
+* **SPDX-License-Identifier header on every source file** (MPL-2.0 for code,
+  CC-BY-SA-4.0 for docs); never remove or modify LICENSE
+* **No hardcoded absolute paths** (`/home/*`, `/mnt/*`, `/var/mnt/*`) — use
+  env vars, XDG dirs, or relative references
+* **No `unsafe {}` Rust blocks without a safety comment**
+* **`.machine_readable/` and `0-AI-MANIFEST.a2ml` preserved**; no SCM files in
+  repo root
+* **No removal of CI workflows without explicit approval**; all GitHub Actions
+  SHA-pinned
+* **Tests must not be deleted or weakened**
 
 == LLM/AI Agent Development
 
@@ -102,10 +125,10 @@ If using an AI assistant, load the warmup context first:
 just llm-context    # Outputs role-appropriate context
 ----
 
-Or read `0-AI-MANIFEST.a2ml` and `.claude/CLAUDE.md` directly.
+Or read `0-AI-MANIFEST.a2ml` directly.
 
 == Get Help
 
-* **Architecture**: link:EXPLAINME.adoc[EXPLAINME.adoc]
+* **Architecture**: link:EXPLAINME.adoc[EXPLAINME.adoc] and link:docs/adr/[docs/adr/]
 * **Wiki**: https://github.com/hyperpolymath/nexia-list/wiki
 * **Report issue**: `just help-me`

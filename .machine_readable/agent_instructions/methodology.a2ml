@@ -55,7 +55,7 @@ perfective = 10   # % for SPDX headers, doc updates, formatting, style
 # Customise this per project — the template default is generic.
 
 [methodology.unique-strength]
-description = "{{PROJECT_UNIQUE_STRENGTH}}"
+description = "Typed end-to-end: the Rust core compiled to WASM is the single source of truth for note/notebook semantics, driven by an exhaustively pattern-matched TEA-style ReScript UI — no type drift between engine and interface"
 deepen-not-broaden = true
 
 # ============================================================================

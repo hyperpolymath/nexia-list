@@ -7,6 +7,21 @@
 
 This document outlines the development phases for Nexia, from MVP to full-featured knowledge management platform.
 
+.Revised sequencing (2026-07)
+[NOTE]
+====
+Nexia is now **web-first**: the Rust core is compiled to WASM and the browser
+is the primary target (see link:docs/adr/0001-wasm-core-web-first.md[ADR-0001]).
+The desktop shell (Gossamer) is optional and external. Current sequencing:
+
+. Build resurrection (Deno 2 tasks, ReScript compile, esbuild bundle) — ✅ done
+. WASM core integration (wasm-bindgen bridge, IndexedDB/file persistence) — in progress
+. Product CI (rust-ci.yml, ui-ci.yml — landing in a parallel workstream)
+. Tests beyond the core unit suite
+. Canvas drag-and-drop + accessibility + PWA (service worker)
+. Wiki-links, graph view, agents, import/export
+====
+
 toc::[]
 
 == Phase 0: Foundation
@@ -15,10 +30,10 @@ Establish the cross-platform development infrastructure.
 
 === Objectives
 
-* Set up monorepo structure
-* Configure Rust workspace for core engine
-* Initialize ReScript project with TEA
-* Set up Tauri for desktop builds
+* Set up repo structure
+* Configure Rust crate for core engine
+* Initialize ReScript project with TEA-style architecture
+* (Optional) Gossamer desktop shell — external, not built in this repo's CI
 * Establish CI/CD pipeline
 
 === Deliverables
@@ -28,37 +43,37 @@ Establish the cross-platform development infrastructure.
 |Item |Description |Status
 
 |Project scaffold
-|Monorepo with core/, ui/, desktop/, web/ directories
-|[ ]
+|Repo with core/, ui/, web/, scripts/, desktop/ directories
+|[x]
 
 |Rust core crate
-|Empty library with Cargo.toml configured
-|[ ]
+|Library with Cargo.toml configured
+|[x]
 
 |ReScript setup
-|rescript.json with rescript-tea, cadre-tea-router deps
-|[ ]
+|rescript.json with @rescript/core + @rescript/react (hand-rolled TEA loop)
+|[x]
 
-|Tauri shell
-|Basic Tauri app that loads ReScript UI
+|Gossamer shell (optional, external)
+|Thin shell wrapping the web bundle; requires sibling ../gossamer checkout
 |[ ]
 
 |Deno tasks
-|dev, build, test, lint commands
-|[ ]
+|setup, dev, build, test, lint, fmt commands (Deno 2, no npm)
+|[x]
 
 |GitHub Actions
-|CI for Rust, ReScript, cross-platform builds
+|Product CI for Rust + ReScript (rust-ci.yml, ui-ci.yml — parallel workstream)
 |[ ]
 
 |MPL-2.0 license
 |LICENSE file
-|[ ]
+|[x]
 |===
 
 == Phase 1: MVP - Basic Note Management
 
-A working desktop app that can create, view, and link notes.
+A working app (browser-first) that can create, view, and link notes.
 
 === Objectives
 
@@ -117,38 +132,42 @@ type msg =
 
 |Note struct
 |Rust data model with serde serialization
-|[ ]
+|[x]
 
 |Notebook operations
-|CRUD operations in Rust core
-|[ ]
+|CRUD operations in Rust core (with backlinks reverse index)
+|[x]
 
 |TEA Model
 |ReScript model type mirroring Rust structs
-|[ ]
+|[x]
 
 |TEA Update
 |Message handlers for all note operations
-|[ ]
+|[x]
 
 |Note editor
 |Basic textarea for note content
-|[ ]
+|[x]
 
 |Note list view
 |Sidebar showing all notes
-|[ ]
+|[x]
 
 |JSON storage
-|Save/load notebook as JSON file
+|Save/load notebook as JSON
+|[x]
+
+|Basic search
+|Substring search across titles/content in Rust core
+|[x]
+
+|WASM bridge
+|wasm-bindgen bridge so the browser UI calls the Rust core
 |[ ]
 
-|Tauri commands
-|Bridge between UI and Rust core
-|[ ]
-
-|Desktop build
-|Working Linux/macOS/Windows binaries
+|Gossamer commands (optional, external)
+|Bridge between UI and Rust core in the optional desktop shell
 |[ ]
 |===
 
@@ -197,12 +216,12 @@ The core differentiator - visual arrangement of notes.
 |Item |Description |Status
 
 |Canvas component
-|ReScript wrapper for HTML canvas
-|[ ]
+|Canvas view rendering note cards
+|[x]
 
 |Pan/zoom
-|Mouse drag to pan, scroll to zoom
-|[ ]
+|Mouse drag to pan, scroll to zoom (double-click creates a note)
+|[x]
 
 |Note cards
 |DOM elements positioned on canvas
@@ -359,8 +378,8 @@ True cross-platform deployment.
 
 === Objectives
 
-* iOS app via Tauri mobile
-* Android app via Tauri mobile
+* iOS app via Gossamer (optional, external)
+* Android app via Gossamer (optional, external)
 * Progressive Web App
 * Offline-first with service worker
 * Optional sync between devices
@@ -398,7 +417,7 @@ True cross-platform deployment.
 |===
 |Item |Description |Status
 
-|Tauri mobile config
+|Gossamer mobile config (optional, external)
 |iOS and Android build setup
 |[ ]
 
@@ -630,7 +649,7 @@ Integration with the wider world.
 * Can create 100+ notes without performance issues
 * Can link notes bidirectionally
 * Can save and reload notebook
-* Works on Linux, macOS, Windows
+* Works in modern browsers on Linux, macOS, Windows
 * Note content survives app restart
 
 === Full Product Success Criteria

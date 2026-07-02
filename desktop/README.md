@@ -1,0 +1,40 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+# Nexia Desktop Shell (optional, external dependency)
+
+This crate is the Gossamer webview shell for Nexia. **It does not build from
+this repository alone** and that is intentional:
+
+- `Cargo.toml` depends on `gossamer-rs = { path = "../../gossamer/bindings/rust" }`,
+  i.e. a checkout of [hyperpolymath/gossamer](https://github.com/hyperpolymath/gossamer)
+  as a **sibling directory** of this repo.
+- The root workspace `Cargo.toml` lists `desktop` under `exclude`, so
+  `cargo build`/`cargo test` at the repo root never touch it, and CI
+  (`rust-ci.yml`, `ui-ci.yml`) deliberately skips it.
+
+## Building (with the sibling checkout)
+
+```
+parent/
+├── nexia-list/   (this repo)
+└── gossamer/     (git clone https://github.com/hyperpolymath/gossamer)
+```
+
+Then: `cd desktop && cargo build`.
+
+## How the desktop shell relates to the web app
+
+The web app is the primary target: the ReScript UI calls the Rust core
+compiled to WebAssembly (see `docs/adr/0001-wasm-core-web-first.md`). The
+UI reaches the engine only through the store seam
+(`ui/src/store/WasmStore.res`), whose operations deliberately mirror the
+command handlers registered in `src/main.rs` here.
+
+To resume desktop work without UI changes, implement a `GossamerStore` with
+the same signatures over `gossamer-bridge.js` (`invoke()`), and select it at
+startup when the bridge is present. Known gaps to backfill in `src/main.rs`
+at that point:
+
+- commands not yet registered: `unlink_notes`, `move_note`, `resize_note`,
+  `set_attribute`
+- the `.lock().unwrap()` calls on the shared state should use
+  `unwrap_or_else(std::sync::PoisonError::into_inner)`

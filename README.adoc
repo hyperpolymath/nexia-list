@@ -6,25 +6,25 @@
 :icons: font
 :source-highlighter: rouge
 
-**Cross-platform personal knowledge management with spatial notes, relationships, and intelligent agents.**
+**Local-first personal knowledge management with spatial notes, relationships, and intelligent agents.**
 
-image:https://img.shields.io/badge/License-MPL--2.0-blue.svg[License: PMPL-1.0,link="https://github.com/hyperpolymath/palimpsest-license"]
-image:https://img.shields.io/badge/Platform-Desktop%20%7C%20Mobile%20%7C%20Web-green.svg[Platform]
-image:https://img.shields.io/badge/ReScript-TEA-orange.svg[ReScript TEA]
-image:https://img.shields.io/badge/Backend-Rust-red.svg[Rust]
+image:https://img.shields.io/badge/License-MPL--2.0-blue.svg[License: MPL-2.0,link="https://www.mozilla.org/en-US/MPL/2.0/"]
+image:https://img.shields.io/badge/Platform-Web%20%7C%20Desktop%20(optional)-green.svg[Platform]
+image:https://img.shields.io/badge/ReScript-TEA--style-orange.svg[ReScript TEA-style]
+image:https://img.shields.io/badge/Core-Rust%20%2B%20WASM-red.svg[Rust + WASM]
 
 toc::[]
 
 == What is Nexia?
 
-Nexia is an open-source, cross-platform knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
+Nexia is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
 
 * **Spatial Canvas** - Arrange notes visually, see relationships at a glance
 * **Linked Notes** - First-class bidirectional links between ideas
-* **Intelligent Agents** - Persistent queries that continuously organize your knowledge
-* **Prototype Inheritance** - Notes inherit attributes from templates
+* **Intelligent Agents** (planned) - Persistent queries that continuously organize your knowledge
+* **Prototype Inheritance** (planned) - Notes inherit attributes from templates
 * **Local-First** - Your data lives on your device, in readable formats
-* **True Cross-Platform** - Same app on Desktop, Mobile, and Web
+* **Web-First** - Runs in the browser; an optional desktop shell can wrap the same app
 
 == Philosophy
 
@@ -33,34 +33,43 @@ Your knowledge is yours. Not in a cloud you don't control. Not locked in a propr
 
 Nexia follows the **local-first** philosophy:
 
-. Data stored as human-readable files (JSON/XML)
+. Data stored in human-readable formats (JSON)
 . Works offline by default
 . Optional sync is additive, never required
-. Export to open formats (HTML, Markdown, OPML)
+. Export to open formats (HTML, Markdown, OPML — planned)
 
 == Architecture
 
+Nexia is **web-first**. The primary target is the browser: the Rust core is
+compiled to WebAssembly so the real engine runs client-side, with no server
+required. A desktop shell is optional and external.
+
 [source]
 ----
-┌─────────────────────────────────────────────────────────┐
-│                    ReScript + TEA                        │
-│              (rescript-tea, cadre-tea-router)            │
-│                   Single UI Codebase                     │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-   ┌──────────┐ ┌──────────┐ ┌─────────────┐
-   │ Gossamer │ │ Gossamer │ │   Browser   │
-   │ Desktop  │ │  Mobile  │ │  (WASM/JS)  │
-   └────┬─────┘ └────┬─────┘ └──────┬──────┘
-        │            │              │
-        └────────────┼──────────────┘
-                     ▼
-         ┌───────────────────────┐
-         │      Rust Core        │
-         │  Graph · Search · IO  │
-         └───────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│              ReScript UI (TEA-style)                     │
+│   Model / Msg / Update / View — hand-rolled TEA loop     │
+│   on @rescript/react; bundled by esbuild → web/dist/     │
+└─────────────────────────┬────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│                  Browser (primary target)                │
+│                                                          │
+│   ┌──────────────────────────────────────────────┐       │
+│   │   Rust Core → WASM (wasm-bindgen)            │       │
+│   │   Notes · Backlinks · Search · JSON storage  │       │
+│   └──────────────────────────────────────────────┘       │
+│                                                          │
+│   Persistence: IndexedDB + file download/upload          │
+└─────────────────────────┬────────────────────────────────┘
+                          │ optional
+                          ▼
+┌──────────────────────────────────────────────────────────┐
+│   Gossamer desktop shell (OPTIONAL, EXTERNAL)            │
+│   Requires a sibling checkout of hyperpolymath/gossamer; │
+│   intentionally not built in this repo's CI              │
+└──────────────────────────────────────────────────────────┘
 ----
 
 === Tech Stack
@@ -70,76 +79,74 @@ Nexia follows the **local-first** philosophy:
 |Layer |Technology |Purpose
 
 |UI Framework
-|ReScript + TEA
-|Type-safe functional UI with The Elm Architecture
-
-|Routing
-|cadre-tea-router
-|URL-based navigation, deep linking
-
-|Desktop/Mobile
-|Gossamer (gossamer-rs)
-|Lightweight webview shell for Linux, macOS, Windows, iOS, Android
-
-|Web
-|WASM + PWA
-|Browser deployment, offline support
+|ReScript 11 + hand-rolled TEA on `@rescript/react`
+|Type-safe functional UI with The Elm Architecture pattern
 
 |Core Engine
-|Rust
-|Graph operations, search indexing, file I/O
+|Rust (serde, serde_json, uuid, chrono, thiserror)
+|Note/Notebook model, backlinks reverse index, substring search, JSON storage
 
-|Configuration
-|Nickel (bunsenite)
-|Type-safe configuration and schema definitions
+|Browser Bridge
+|wasm-bindgen (in progress)
+|Compiles the Rust core to WASM so the browser runs the real engine
+
+|Tooling
+|Deno 2 tasks + esbuild
+|Package management, dev server, bundling — no npm/bun/yarn/pnpm CLIs
 
 |Storage
-|Local files + IndexedDB
-|Platform-adaptive persistence
+|JSON via IndexedDB + file download/upload
+|Local-first persistence in the browser
+
+|Desktop (optional)
+|Gossamer (external sibling checkout)
+|Thin webview shell wrapping the same web bundle
 |===
 
 === Why This Stack?
 
-**ReScript + TEA** gives us:
+**ReScript + TEA-style architecture** gives us:
 
 * Exhaustive pattern matching (compiler catches missed states)
 * Pure update functions (easy testing, time-travel debugging)
 * Single source of truth (no stale UI bugs)
 * Type-safe message passing
 
-**Gossamer** gives us:
-
-* True cross-platform (desktop AND mobile from one codebase)
-* Minimal binary sizes (smaller than Tauri, far smaller than Electron)
-* Native webview performance via Zig FFI
-* Capability-based security model (no implicit permissions)
-* Idris2 ABI-verified interface contracts
-
-**Rust** gives us:
+**Rust compiled to WASM** gives us:
 
 * Memory safety without GC pauses
-* Excellent graph libraries (petgraph)
-* Fast full-text search (tantivy)
-* WASM compilation for browser
+* One core implementation shared by browser and any future shell
+* No type drift between "desktop core" and "web core"
+
+=== Future directions (not yet implemented)
+
+These appear in older docs as if they existed — they do not, yet:
+
+* Graph engine via petgraph
+* Full-text search via tantivy (current search is substring matching)
+* Nickel schemas for configuration/validation
+* Service worker / offline PWA install
+* Mobile targets
+* A dedicated TEA library and URL router (the current TEA loop is hand-rolled;
+  `rescript-tea` and `cadre-tea-router` were removed as unused/unresolvable)
 
 == Features
 
 === MVP (v0.1)
 
-* [ ] Create, edit, delete notes
-* [ ] Spatial canvas with drag-and-drop
-* [ ] Bidirectional linking between notes
-* [ ] Basic search
-* [ ] Local file storage (JSON)
-* [ ] Desktop app (Linux, macOS, Windows)
+* [x] Create, edit, delete notes
+* [ ] Spatial canvas with drag-and-drop (pan/zoom and double-click create work; drag-and-drop pending)
+* [x] Bidirectional linking between notes (in core; UI surfacing in progress)
+* [x] Basic search
+* [x] Local file storage (JSON)
+* [ ] Optional desktop shell (Gossamer, external)
 
 === Future
 
 * [ ] Agents (persistent queries)
 * [ ] Prototype inheritance
 * [ ] Timeline view
-* [ ] Mobile apps (iOS, Android)
-* [ ] Web app (PWA)
+* [ ] Web app installable as PWA (service worker)
 * [ ] Rich text editing
 * [ ] Entity extraction (names, dates, places)
 * [ ] Export (HTML, Markdown, OPML)
@@ -149,46 +156,44 @@ Nexia follows the **local-first** philosophy:
 
 [source]
 ----
-nexia/
-├── core/                 # Rust - graph engine, search, storage
+nexia-list/
+├── core/                  # Rust — note/notebook engine (~623 LOC, 12 unit tests)
 │   ├── Cargo.toml
 │   └── src/
-│       ├── lib.rs
-│       ├── graph.rs      # Note relationships
-│       ├── search.rs     # Full-text indexing
-│       └── storage.rs    # File I/O
-├── ui/                   # ReScript - TEA application
+│       ├── lib.rs         # Crate root
+│       ├── note.rs        # Note data model (serde)
+│       ├── notebook.rs    # CRUD, backlinks reverse index, substring search
+│       ├── storage.rs     # JSON save/load
+│       └── wasm.rs        # wasm-bindgen bridge for the browser
+├── ui/                    # ReScript — TEA-style app (~880 LOC)
 │   ├── rescript.json
 │   └── src/
-│       ├── Main.res      # Entry point
-│       ├── Model.res     # Application state
-│       ├── Update.res    # Message handling
-│       ├── View.res      # Rendering
-│       ├── Canvas.res    # Spatial view
-│       └── Note.res      # Note component
-├── desktop/              # Gossamer desktop shell
-│   ├── gossamer.conf.json
-│   └── src/
-│       └── main.rs       # Gossamer command handlers
-├── mobile/               # Gossamer mobile configuration
-│   ├── ios/
-│   └── android/
-├── web/                  # Browser/PWA build
-│   ├── index.html
-│   └── service-worker.js
-├── config/               # Nickel schemas
-│   └── note-schema.ncl
-└── docs/
-    └── ROADMAP.adoc
+│       ├── Main.res       # Entry point
+│       ├── Model.res      # Application state
+│       ├── Msg.res        # Message type
+│       ├── Types.res      # Shared types
+│       ├── Update.res     # Message handling
+│       ├── View.res       # Rendering (list, editor, canvas)
+│       └── bindings/
+│           └── DomBindings.res
+├── scripts/               # Deno build/dev scripts (esbuild bundling, dev server)
+├── web/                   # Browser entry (index.html, styles) + bundle output (dist/)
+├── desktop/               # OPTIONAL Gossamer shell — requires external sibling
+│                          # checkout of hyperpolymath/gossamer; not built in CI
+├── docs/                  # ADRs, reports
+└── tests/                 # Cross-cutting tests
 ----
 
 == Getting Started
 
 === Prerequisites
 
-* https://deno.land/[Deno] (package management, scripts)
-* https://www.rust-lang.org/tools/install[Rust] (core engine)
-* https://github.com/hyperpolymath/gossamer[Gossamer] (webview shell)
+* https://deno.land/[Deno] 2.x (only JS toolchain used — no npm/bun/yarn/pnpm)
+* https://www.rust-lang.org/tools/install[Rust] stable
+  (plus the `wasm32-unknown-unknown` target for WASM builds:
+  `rustup target add wasm32-unknown-unknown`)
+* Optional, desktop only: a sibling checkout of
+  https://github.com/hyperpolymath/gossamer[Gossamer] next to this repo
 
 === Development
 
@@ -201,11 +206,17 @@ cd nexia-list
 # Install dependencies
 deno task setup
 
-# Run development server
+# Run development server (http://localhost:5173)
 deno task dev
 
-# Build for production
+# Build for production (ReScript + web bundle)
 deno task build
+
+# Build the WASM core
+deno task build:wasm
+
+# Run tests (Rust core + UI)
+deno task test
 ----
 
 == Contributing
@@ -215,14 +226,14 @@ Contributions welcome! Please read our link:CONTRIBUTING.md[Contributing Guide] 
 === Development Principles
 
 . **Local-first always** - Never require network for core functionality
-. **Platform parity** - Features should work on all platforms
+. **Web-first** - The browser is the primary target; shells are additive
 . **Type safety** - Leverage ReScript's type system fully
 . **Performance** - Keep UI responsive with 10,000+ notes
 . **Simplicity** - Resist feature creep, do fewer things well
 
 == License
 
-MPL-2.0. See link:LICENSE[LICENSE] for details.
+MPL-2.0 for code, CC-BY-SA-4.0 for documentation. See link:LICENSE[LICENSE] for details.
 
 Your knowledge is yours. The code to manage it should be too.
 
@@ -231,9 +242,9 @@ Your knowledge is yours. The code to manage it should be too.
 * https://www.eastgate.com/Tinderbox/[Tinderbox] - The inspiration for spatial note-taking
 * https://rescript-lang.org/[ReScript] - Type-safe language compiling to JS
 * https://github.com/hyperpolymath/gossamer[Gossamer] - Lightweight webview shell with Zig FFI
-* https://github.com/hyperpolymath[hyperpolymath] ecosystem - ReScript-TEA, gossamer-rs, bunsenite
+* https://github.com/hyperpolymath[hyperpolymath] ecosystem
 
 
-== Architecture
+== Architecture Map
 
 See link:TOPOLOGY.md[TOPOLOGY.md] for a visual architecture map and completion dashboard.
