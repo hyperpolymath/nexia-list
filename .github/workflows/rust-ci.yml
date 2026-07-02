@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: MPL-2.0
+# Product CI (Rust): the load-bearing build/test workflow for core/.
+# desktop/ is intentionally NOT built here — it needs a sibling checkout of
+# hyperpolymath/gossamer (see desktop/README.md) and is excluded from the
+# workspace in the root Cargo.toml.
+name: rust-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: fmt + clippy + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install stable toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: rust-test-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy (including the wasm feature, compiled for host)
+        run: cargo clippy --all-targets --features wasm -- -D warnings
+      - name: Tests (unit + golden contract + property)
+        run: cargo test
+
+  wasm:
+    name: wasm build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install stable toolchain with wasm target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/bin
+            target
+          key: rust-wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Install wasm-bindgen-cli
+        run: command -v wasm-bindgen >/dev/null || cargo install wasm-bindgen-cli --version 0.2.126 --locked
+      - name: Build core for wasm32
+        run: cargo build --release --target wasm32-unknown-unknown --features wasm -p nexia-core
+      - name: Generate JS bindings
+        run: wasm-bindgen target/wasm32-unknown-unknown/release/nexia_core.wasm --target web --no-typescript --out-dir web/wasm

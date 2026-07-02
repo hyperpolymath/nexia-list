@@ -8,3 +8,14 @@ updates:
       actions:
         patterns:
           - "*"
+  # Rust core crate. NOTE: deliberately no entry for /desktop — its path
+  # dependency on an external sibling checkout (../../gossamer) would make
+  # dependabot error.
+  - package-ecosystem: "cargo"
+    directory: "/core"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo:
+        patterns:
+          - "*"
