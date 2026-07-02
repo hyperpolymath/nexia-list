@@ -52,29 +52,9 @@ type viewport = {
   zoom: float,
 }
 
-/// Helper functions for creating types
-module Note = {
-  let make = (~title: string): note => {
-    let now = Js.Date.toISOString(Js.Date.make())
-    {
-      id: Js.Math.random()->Float.toString,
-      title,
-      content: "",
-      position: None,
-      size: None,
-      createdAt: now,
-      modifiedAt: now,
-      links: [],
-      prototype: None,
-      attributes: Js.Dict.empty(),
-    }
-  }
-
-  let withPosition = (note: note, x: float, y: float): note => {
-    ...note,
-    position: Some({x, y}),
-  }
-}
+// Note construction lives in the Rust core (WasmStore.createNote) — the UI
+// never fabricates ids or timestamps, which is what kept these types from
+// drifting apart before.
 
 module Point2D = {
   let make = (x: float, y: float): point2D => {x, y}
