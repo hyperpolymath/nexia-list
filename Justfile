@@ -7,12 +7,40 @@ import? "contractile.just"
 default:
     @just --list
 
+# Install dependencies (Deno packages + wasm target for the core)
+setup:
+    deno task setup
+    rustup target add wasm32-unknown-unknown || true
+
+# Build the project (ReScript compile + esbuild web bundle)
+build:
+    deno task build
+
+# Build the Rust core to WASM for the browser
+build-wasm:
+    deno task build:wasm
+
+# Run all tests (Rust core + UI)
+test:
+    deno task test
+
+# Run the development server (http://localhost:5173)
+run:
+    deno task dev
+
+# Static checks — Deno lint, rustfmt, clippy
+check:
+    deno lint
+    cd core && cargo fmt --check && cargo clippy -- -D warnings
+
 # Self-diagnostic — checks dependencies, permissions, paths
 doctor:
     @echo "Running diagnostics for nexia-list..."
     @echo "Checking required tools..."
     @command -v just >/dev/null 2>&1 && echo "  [OK] just" || echo "  [FAIL] just not found"
     @command -v git >/dev/null 2>&1 && echo "  [OK] git" || echo "  [FAIL] git not found"
+    @command -v deno >/dev/null 2>&1 && echo "  [OK] deno" || echo "  [FAIL] deno not found (need Deno 2.x)"
+    @command -v cargo >/dev/null 2>&1 && echo "  [OK] cargo" || echo "  [FAIL] cargo not found (need Rust stable)"
     @echo "Checking for hardcoded paths..."
     @grep -rn '/var/mnt/eclipse' --include='*.rs' --include='*.ex' --include='*.res' --include='*.gleam' --include='*.sh' --include='*.toml' . 2>/dev/null | grep -v 'Justfile' | head -5 || echo "  [OK] No hardcoded paths in source"
     @echo "Diagnostics complete."

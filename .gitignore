@@ -40,6 +40,13 @@ erl_crash.dump
 # ReScript
 /lib/bs/
 /.bsb.lock
+ui/lib/
+ui/src/**/*.res.js
+ui/tests/**/*.res.js
+
+# Generated web artifacts
+web/dist/
+web/wasm/
 
 # Python (SaltStack only)
 __pycache__/

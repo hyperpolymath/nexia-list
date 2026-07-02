@@ -4,21 +4,24 @@
     {
       "dir": "src",
       "subdirs": true
+    },
+    {
+      "dir": "tests",
+      "type": "dev"
     }
   ],
   "package-specs": [
     {
-      "module": "es6",
+      "module": "esmodule",
       "in-source": true
     }
   ],
   "suffix": ".res.js",
   "bs-dependencies": [
     "@rescript/core",
-    "@rescript/react",
-    "rescript-tea",
-    "cadre-tea-router"
+    "@rescript/react"
   ],
+  "bsc-flags": ["-open RescriptCore"],
   "jsx": {
     "version": 4,
     "mode": "automatic"
