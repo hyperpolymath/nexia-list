@@ -13,7 +13,7 @@ type t
 type delta = {
   changed: array<note>,
   removed: array<noteId>,
-  backlinks: Js.Dict.t<array<noteId>>,
+  backlinks: Dict.t<array<noteId>>,
 }
 
 @module("../../../web/wasm/nexia_core.js")
