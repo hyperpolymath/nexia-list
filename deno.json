@@ -1,31 +1,39 @@
 {
   "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
-  "name": "nexia",
-  "version": "0.1.0",
+  "nodeModulesDir": "auto",
   "tasks": {
-    "dev": "cd ui && deno task dev",
-    "build": "cd ui && deno task build",
+    "setup": "deno install --allow-scripts=npm:rescript@11.1.4,npm:esbuild@0.28.1",
+    "setup:rust": "cd core && cargo build",
+    "dev": "deno run -A scripts/dev.js",
+    "build": "deno task build:res && deno task build:web",
+    "build:res": "cd ui && deno run -A npm:rescript@11.1.4",
+    "build:res:watch": "cd ui && deno run -A npm:rescript@11.1.4 build -w",
+    "build:web": "deno run -A scripts/build.js",
     "build:rust": "cd core && cargo build --release",
+    "build:wasm": "deno run -A scripts/build_wasm.js",
     "gossamer:dev": "cd desktop && gossamer dev",
     "gossamer:build": "cd desktop && gossamer build",
-    "test": "cd core && cargo test",
+    "test": "deno task test:rust && deno task test:ui",
+    "test:rust": "cd core && cargo test",
+    "test:ui": "deno test -A ui/tests/",
     "lint": "deno lint && cd core && cargo clippy",
     "fmt": "deno fmt && cd core && cargo fmt",
-    "setup": "deno task setup:ui && deno task setup:rust",
-    "setup:ui": "cd ui && npm install",
-    "setup:rust": "cd core && cargo build"
+    "clean": "cd ui && deno run -A npm:rescript@11.1.4 clean"
   },
   "imports": {
-    "@rescript/core": "npm:@rescript/core@^1.0.0",
-    "@rescript/react": "npm:@rescript/react@^0.12.0",
-    "rescript-tea": "npm:rescript-tea@^0.10.0"
+    "rescript": "npm:rescript@11.1.4",
+    "@rescript/core": "npm:@rescript/core@1.6.1",
+    "@rescript/react": "npm:@rescript/react@0.13.1",
+    "react": "npm:react@18.3.1",
+    "react-dom": "npm:react-dom@18.3.1",
+    "esbuild": "npm:esbuild@0.28.1"
   },
   "lint": {
-    "include": ["ui/", "web/"],
-    "exclude": ["ui/src/**/*.res.js"]
+    "include": ["ui/", "web/", "scripts/"],
+    "exclude": ["ui/src/**/*.res.js", "ui/tests/**/*.res.js", "ui/lib/", "web/dist/", "web/wasm/"]
   },
   "fmt": {
-    "include": ["ui/", "web/"],
-    "exclude": ["ui/src/**/*.res.js"]
+    "include": ["ui/", "web/", "scripts/"],
+    "exclude": ["ui/src/**/*.res.js", "ui/tests/**/*.res.js", "ui/lib/", "web/dist/", "web/wasm/"]
   }
 }

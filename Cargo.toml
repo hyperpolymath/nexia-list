@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MPL-2.0
+# Workspace root. desktop/ is excluded on purpose: it depends on a sibling
+# checkout of hyperpolymath/gossamer (../gossamer) that is not part of this
+# repo — see desktop/README.md. Root builds must never break on its absence.
+[workspace]
+resolver = "2"
+members = ["core"]
+exclude = ["desktop"]
+
+[profile.release]
+opt-level = "z"
+lto = true

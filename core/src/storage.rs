@@ -55,7 +55,9 @@ impl Storage for JsonStorage {
         }
 
         let json = std::fs::read_to_string(path)?;
-        let notebook = serde_json::from_str(&json)?;
+        let mut notebook: Notebook = serde_json::from_str(&json)?;
+        // The stored index may be stale (hand-edited or older files).
+        notebook.rebuild_backlinks();
         Ok(notebook)
     }
 }
@@ -63,7 +65,6 @@ impl Storage for JsonStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]

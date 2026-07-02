@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: MPL-2.0
+# Product CI (UI/web): compiles the ReScript UI under Deno, builds the wasm
+# core, runs the UI + contract tests, and produces the web bundle.
+name: ui-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: rescript + wasm + deno test + bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Deno
+        run: |
+          curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$HOME/.deno" sh -s v2.9.1
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: Install stable Rust with wasm target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/bin
+            target
+          key: rust-wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install wasm-bindgen-cli
+        run: command -v wasm-bindgen >/dev/null || cargo install wasm-bindgen-cli --version 0.2.126 --locked
+
+      - name: Install JS dependencies (Deno-only, npm registry)
+        run: deno task setup
+
+      - name: Compile ReScript
+        run: deno task build:res
+
+      - name: Build wasm core
+        run: deno task build:wasm
+
+      - name: UI + contract tests
+        run: deno task test:ui
+
+      - name: Bundle web app
+        run: deno task build:web
+
+      - name: Lint
+        run: deno lint

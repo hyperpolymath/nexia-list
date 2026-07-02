@@ -1,95 +1,104 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 <!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
-<!-- Last updated: 2026-02-19 -->
+<!-- Last updated: 2026-07-02 -->
 
 # Nexia — Project Topology
 
 ## System Architecture
 
+Nexia is **web-first**: the browser is the primary target, running the real
+Rust core compiled to WebAssembly. The desktop shell is optional and depends
+on an **external** sibling checkout of `hyperpolymath/gossamer`; it is
+intentionally not built in this repo's CI.
+
 ```
                         ┌─────────────────────────────────────────┐
                         │              USER INTERFACE             │
-                        │        (Spatial Canvas / Notes)         │
+                        │     (Note list / Editor / Canvas)       │
                         └───────────────────┬─────────────────────┘
                                             │
                                             ▼
                         ┌─────────────────────────────────────────┐
                         │           UI LAYER (RESCRIPT)           │
-                        │    (TEA Architecture, cadre-tea-router)  │
-                        └──────────┬───────────────────┬──────────┘
-                                   │                   │
-                                   ▼                   ▼
-                        ┌───────────────────┐  ┌───────────────────┐
-                        │   TAURI SHELL     │  │   BROWSER / PWA   │
-                        │ (Desktop/Mobile)  │  │   (WASM/JS)       │
-                        └──────────┬────────┘  └──────────┬────────┘
-                                   │                      │
-                                   └──────────┬───────────┘
-                                              │
-                                              ▼
+                        │  Hand-rolled TEA on @rescript/react     │
+                        │  Model / Msg / Update / View            │
+                        │  esbuild bundle → web/dist/             │
+                        └───────────────────┬─────────────────────┘
+                                            │
+                                            ▼
                         ┌─────────────────────────────────────────┐
-                        │           RUST CORE (CRATES)            │
+                        │        BROWSER (PRIMARY TARGET)         │
                         │                                         │
-                        │  ┌───────────┐  ┌───────────────────┐  │
-                        │  │  Graph    │  │  Search           │  │
-                        │  │ (Petgraph)│  │ (Tantivy)         │  │
-                        │  └─────┬─────┘  └────────┬──────────┘  │
-                        │        │                 │              │
-                        │  ┌─────▼─────┐  ┌────────▼──────────┐  │
-                        │  │ Storage   │  │  Nickel           │  │
-                        │  │ (FS/IDB)  │  │  Schemas          │  │
-                        │  └─────┬─────┘  └────────┬──────────┘  │
-                        └────────│─────────────────│──────────────┘
-                                 │                 │
-                                 ▼                 ▼
+                        │  ┌───────────────────────────────────┐  │
+                        │  │   RUST CORE → WASM (wasm-bindgen) │  │
+                        │  │   Note · Notebook · Backlinks     │  │
+                        │  │   Substring search · JSON storage │  │
+                        │  └────────────────┬──────────────────┘  │
+                        │                   │                     │
+                        │                   ▼                     │
+                        │  ┌───────────────────────────────────┐  │
+                        │  │          DATA LAYER               │  │
+                        │  │  IndexedDB + file download/upload │  │
+                        │  │  (human-readable JSON)            │  │
+                        │  └───────────────────────────────────┘  │
+                        └───────────────────┬─────────────────────┘
+                                            │ optional
+                                            ▼
                         ┌─────────────────────────────────────────┐
-                        │             DATA LAYER                  │
-                        │  ┌───────────┐  ┌───────────────────┐  │
-                        │  │ Local JSON│  │  IndexedDB        │  │
-                        │  │ (Files)   │  │  (Web Storage)    │  │
-                        │  └───────────┘  └───────────────────┘  │
+                        │  GOSSAMER DESKTOP SHELL (OPTIONAL)      │
+                        │  EXTERNAL: requires sibling checkout    │
+                        │  ../gossamer — NOT built in this CI     │
                         └─────────────────────────────────────────┘
 
                         ┌─────────────────────────────────────────┐
                         │          REPO INFRASTRUCTURE            │
-                        │  Justfile Automation  .machine_readable/  │
-                        │  Deno Tooling         0-AI-MANIFEST.a2ml  │
+                        │  Deno 2 tasks   Justfile   scripts/     │
+                        │  .machine_readable/  0-AI-MANIFEST.a2ml │
                         └─────────────────────────────────────────┘
 ```
+
+Future (not yet implemented, kept out of the diagram deliberately): petgraph
+graph engine, tantivy full-text search, Nickel schemas, service worker / PWA
+install, mobile targets.
 
 ## Completion Dashboard
 
 ```
 COMPONENT                          STATUS              NOTES
 ─────────────────────────────────  ──────────────────  ─────────────────────────────────
-USER INTERFACES
-  ReScript UI (TEA)                 ██████░░░░  60%    Spatial canvas prototyping
-  Tauri Desktop Shell               ████████░░  80%    Linux/macOS integration verified
-  Tauri Mobile Shell                ████░░░░░░  40%    Initial Android stubs
-  Web / PWA Deployment              ██████░░░░  60%    Offline service worker verified
+PRODUCT
+  Rust Core Engine                  ████████░░  80%    Of MVP scope: Note/Notebook, back-
+                                                       links, substring search, JSON
+                                                       storage; 12 passing unit tests
+  ReScript UI (TEA-style)           ██████░░░░  60%    Compiles; list/editor work; canvas
+                                                       pan/zoom + dbl-click create; no
+                                                       drag-and-drop; GraphView placeholder
+  WASM Bridge (core → browser)      ████░░░░░░  40%    In progress (wasm-bindgen)
+  Web / PWA                         ███░░░░░░░  30%    Builds and runs via esbuild bundle;
+                                                       no service worker yet (planned)
+  Desktop Shell (Gossamer)          ░░░░░░░░░░   0%    Blocked-external: needs sibling
+                                                       ../gossamer checkout; not buildable
+                                                       in this repo
 
-CORE ENGINE (RUST)
-  Graph Engine (petgraph)           ██████████ 100%    Bidirectional links stable
-  Search Indexing (tantivy)         ████████░░  80%    FTS integration refining
-  File I/O (JSON/XML)               ██████████ 100%    Local-first storage verified
-  Nickel Schemas                    ██████████ 100%    Note validation active
-
-REPO INFRASTRUCTURE
-  Justfile Automation               ██████████ 100%    Standard build/setup tasks
-  .machine_readable/                ██████████ 100%    STATE tracking active
-  Deno Task Runner                  ██████████ 100%    Package management verified
+INFRASTRUCTURE
+  CI Product Coverage               █░░░░░░░░░  10%    In progress: rust-ci.yml + ui-ci.yml
+                                                       landing in a parallel workstream;
+                                                       existing 11 workflows are estate
+                                                       governance/scanning only
+  Governance / Meta                 ███████░░░  70%    Contractiles, STATE, manifest, docs
 
 ─────────────────────────────────────────────────────────────────────────────
-OVERALL:                            ███████░░░  ~70%   Core engine stable, UI refining
+OVERALL:                            ████░░░░░░  ~35%   Build resurrected; WASM integration
+                                                       is the current critical path
 ```
 
 ## Key Dependencies
 
 ```
-Nickel Schema ───► Rust Core ──────► Graph Engine ──────► Spatial UI
-     │               │                 │                   │
-     ▼               ▼                 ▼                   ▼
-Storage Logic ──► Local Files ──────► Search Index ───► Query Agent
+Rust Core ──► WASM bundle ──► ReScript UI ──► Web bundle (web/dist/)
+    │                                              │
+    ▼                                              ▼
+JSON storage ──► IndexedDB / file download   (optional) Gossamer shell
 ```
 
 ## Update Protocol

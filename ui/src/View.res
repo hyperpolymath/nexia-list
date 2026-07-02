@@ -233,6 +233,7 @@ module Toolbar = {
           ? <span className="dirty-indicator"> {React.string("Unsaved")} </span>
           : React.null}
         <button onClick={_ => dispatch(NewNotebook)}> {React.string("New")} </button>
+        <button onClick={_ => dispatch(LoadNotebook(""))}> {React.string("Load")} </button>
         <button onClick={_ => dispatch(SaveNotebook)}> {React.string("Save")} </button>
       </div>
     </div>

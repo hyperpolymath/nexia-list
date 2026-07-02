@@ -12,9 +12,9 @@ Allow: /
 Manifest: /0-AI-MANIFEST.a2ml
 
 # Machine-readable metadata
-Metadata: /.machine_readable/STATE.scm
-Metadata: /.machine_readable/META.scm
-Metadata: /.machine_readable/ECOSYSTEM.scm
+Metadata: /.machine_readable/6a2/STATE.a2ml
+Metadata: /.machine_readable/6a2/META.a2ml
+Metadata: /.machine_readable/6a2/ECOSYSTEM.a2ml
 
 # License
 License: MPL-2.0

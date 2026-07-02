@@ -65,10 +65,7 @@ impl Notebook {
 
         // Update backlinks for any links this note has
         for target_id in &note.links {
-            self.backlinks
-                .entry(*target_id)
-                .or_default()
-                .insert(id);
+            self.backlinks.entry(*target_id).or_default().insert(id);
         }
 
         self.notes.insert(id, note);
@@ -121,6 +118,11 @@ impl Notebook {
 
     /// Create a link between two notes
     pub fn link_notes(&mut self, from: NoteId, to: NoteId) -> Result<(), NotebookError> {
+        // A self-link would corrupt the backlink index: Note::add_link
+        // refuses it silently, so the backlink below must not be recorded.
+        if from == to {
+            return Err(NotebookError::CircularLink);
+        }
         // Verify both notes exist
         if !self.notes.contains_key(&from) {
             return Err(NotebookError::NoteNotFound(from));
@@ -205,6 +207,20 @@ impl Notebook {
             .collect()
     }
 
+    /// Rebuild the backlinks index from the notes' outgoing links.
+    ///
+    /// The index is persisted alongside the notes, but a hand-edited or
+    /// older file may carry a stale one — loading always rebuilds instead
+    /// of trusting it.
+    pub fn rebuild_backlinks(&mut self) {
+        self.backlinks.clear();
+        for (id, note) in &self.notes {
+            for target_id in &note.links {
+                self.backlinks.entry(*target_id).or_default().insert(*id);
+            }
+        }
+    }
+
     /// Update the modified timestamp
     fn touch(&mut self) {
         self.modified_at = chrono::Utc::now();
@@ -273,6 +289,35 @@ mod tests {
 
         // id3 should have no backlinks
         assert!(notebook.get_backlinks(&id3).is_empty());
+    }
+
+    #[test]
+    fn test_self_link_rejected() {
+        let mut notebook = Notebook::new("Test");
+        let id = notebook.create_note("Note");
+
+        assert!(matches!(
+            notebook.link_notes(id, id),
+            Err(NotebookError::CircularLink)
+        ));
+        // The backlink index must stay untouched.
+        assert!(notebook.get_backlinks(&id).is_empty());
+    }
+
+    #[test]
+    fn test_rebuild_backlinks() {
+        let mut notebook = Notebook::new("Test");
+        let id1 = notebook.create_note("Note 1");
+        let id2 = notebook.create_note("Note 2");
+        notebook.link_notes(id1, id2).unwrap();
+
+        // Corrupt the index, then rebuild
+        notebook.backlinks.clear();
+        assert!(notebook.get_backlinks(&id2).is_empty());
+
+        notebook.rebuild_backlinks();
+        assert_eq!(notebook.get_backlinks(&id2), vec![id1]);
+        assert!(notebook.get_backlinks(&id1).is_empty());
     }
 
     #[test]

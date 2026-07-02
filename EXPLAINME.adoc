@@ -7,7 +7,7 @@ The README makes claims. This file backs them up.
 
 [quote, README]
 ____
-Nexia is an open-source, cross-platform knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
+Nexia is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox].
 ____
 
 == Technology Choices
@@ -16,7 +16,10 @@ ____
 |===
 | Technology | Learn More
 
-| **Deno** | https://deno.land
+| **Deno 2** (only JS toolchain) | https://deno.land
+| **ReScript 11** (TEA-style UI on @rescript/react) | https://rescript-lang.org
+| **Rust** (core engine, compiled to WASM via wasm-bindgen) | https://www.rust-lang.org
+| **esbuild** (bundling, via Deno) | https://esbuild.github.io
 |===
 
 == File Map
@@ -25,7 +28,13 @@ ____
 |===
 | Path | What's There
 
-| `test(s)/` | Test suite
+| `core/` | Rust core: Note/Notebook, backlinks, substring search, JSON storage
+| `ui/` | ReScript TEA-style UI (Model/Msg/Update/View + DOM bindings)
+| `scripts/` | Deno build/dev scripts
+| `web/` | Browser entry + bundle output (`dist/`)
+| `desktop/` | Optional Gossamer shell (external sibling checkout; not built in CI)
+| `docs/adr/` | Architecture decision records (web-first WASM, Deno-only)
+| `tests/` | Cross-cutting test suite
 |===
 
 == Questions?

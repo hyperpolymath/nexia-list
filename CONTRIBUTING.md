@@ -3,53 +3,64 @@
 
 ## Development Setup
 
+Prerequisites: [Deno](https://deno.land/) 2.x and [Rust](https://www.rust-lang.org/tools/install)
+stable (plus the `wasm32-unknown-unknown` target for WASM builds). Deno is the
+only JS toolchain — do not use npm/bun/yarn/pnpm. A Guix environment is
+provided via `guix.scm` (`guix shell`) if you prefer reproducible shells.
+
 ```bash
 # Clone the repository
 git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
 
-# Using Nix (recommended for reproducibility)
-nix develop
+# Install dependencies
+deno task setup
 
-# Or using toolbox/distrobox
-toolbox create nexia-list-dev
-toolbox enter nexia-list-dev
-# Install dependencies manually
+# Run the development server (http://localhost:5173)
+deno task dev
+
+# Build (ReScript + web bundle)
+deno task build
 
 # Verify setup
-just check   # or: cargo check / mix compile / etc.
-just test    # Run test suite
+deno task lint
+deno task test    # Rust core tests + UI tests
 ```
+
+Equivalent `just` recipes exist: `just setup`, `just build`, `just test`,
+`just run`, `just check`.
 
 ### Repository Structure
 ```
 nexia-list/
-├── src/                 # Source code (Perimeter 1-2)
-├── lib/                 # Library code (Perimeter 1-2)
-├── extensions/          # Extensions (Perimeter 2)
-├── plugins/             # Plugins (Perimeter 2)
-├── tools/               # Tooling (Perimeter 2)
-├── docs/                # Documentation (Perimeter 3)
-│   ├── architecture/    # ADRs, specs (Perimeter 2)
-│   └── proposals/       # RFCs (Perimeter 3)
-├── examples/            # Examples (Perimeter 3)
-├── spec/                # Spec tests (Perimeter 3)
-├── tests/               # Test suite (Perimeter 2-3)
-├── .well-known/         # Protocol files (Perimeter 1-3)
-├── .github/             # GitHub config (Perimeter 1)
-│   ├── ISSUE_TEMPLATE/
-│   └── workflows/
+├── core/                # Rust core — notes, backlinks, search, JSON storage
+├── ui/                  # ReScript TEA-style UI (@rescript/react)
+├── scripts/             # Deno build/dev scripts (esbuild)
+├── web/                 # Browser entry + bundle output (dist/)
+├── desktop/             # OPTIONAL Gossamer shell (external sibling checkout;
+│                        # not built in this repo's CI)
+├── docs/                # ADRs, reports
+│   └── adr/             # Architecture decision records
+├── tests/               # Cross-cutting tests
+├── .well-known/         # Protocol files (ai.txt, security.txt, humans.txt)
+├── .machine_readable/   # Contractiles, STATE/META/ECOSYSTEM checkpoints,
+│                        # and governance metadata (see below)
+├── .github/             # GitHub config and workflows
 ├── CHANGELOG.md
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md      # This file
-├── GOVERNANCE.md
 ├── LICENSE
-├── MAINTAINERS.md
+├── MAINTAINERS.adoc
 ├── README.adoc
+├── ROADMAP.adoc
 ├── SECURITY.md
-├── flake.nix            # Nix flake (Perimeter 1)
-└── Justfile             # Task runner (Perimeter 1)
+├── deno.json            # Deno tasks and import map
+└── Justfile             # Task runner recipes
 ```
+
+Governance and invariants are machine-readable: see
+[`.machine_readable/`](.machine_readable/) (in particular `MUST.contractile`
+and `INTENT.contractile`) and [`0-AI-MANIFEST.a2ml`](0-AI-MANIFEST.a2ml).
 
 ---
 
@@ -75,7 +86,7 @@ Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md) and include:
 ### Suggesting Features
 
 **Before suggesting**:
-1. Check the [roadmap](ROADMAP.md) if available
+1. Check the [roadmap](ROADMAP.adoc)
 2. Search existing issues and discussions
 3. Consider which perimeter the feature belongs to
 
@@ -120,3 +131,11 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 [optional body]
 
 [optional footer]
+```
+
+---
+
+## Questions?
+
+See [MAINTAINERS.adoc](MAINTAINERS.adoc) for who to contact, and
+[SECURITY.md](SECURITY.md) for reporting vulnerabilities.

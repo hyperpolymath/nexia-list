@@ -35,38 +35,36 @@
 
   ; === Purpose (what this repo IS) ===
   (purpose
-    "{{ONE_PARAGRAPH_PURPOSE}}"
+    "Nexia is a local-first, spatial personal knowledge management tool: notes arranged on a spatial canvas, first-class bidirectional links between them, and (planned) agents implemented as persistent queries that continuously organise the notebook. It is web-first — a ReScript TEA-style UI drives a Rust core compiled to WASM in the browser — and all user data lives on the user's device in human-readable JSON."
   )
 
   ; === Anti-Purpose (what this repo is NOT — prevents scope creep) ===
   (anti-purpose
-    "{{ONE_PARAGRAPH_ANTI_PURPOSE}}"
-    ; Examples:
-    ; "This is NOT a general-purpose database — it solves one specific problem."
-    ; "This is NOT a framework — it is a library with a focused API."
-    ; "This does NOT handle authentication — that is delegated to [other repo]."
+    "This is NOT a cloud or SaaS product — no server-side component, no account, no required network. It does NOT do real-time collaboration — local-first means single-user focus. It must NOT introduce vendor lock-in — data is always exportable in open formats. It is NOT an outliner clone — the spatial canvas and link graph are the primary organising metaphors, not a hierarchy."
   )
 
   ; === Key Architectural Decisions That Must Not Be Reversed ===
   (architectural-invariants
-    ; *REMINDER: List the foundational decisions*
-    ; ("Idris2 for ABI definitions — dependent types prove interface correctness")
-    ; ("Zig for FFI — zero-cost C ABI compatibility")
-    ; ("Elixir for supervision — OTP fault tolerance")
+    ("Web-first: the browser is the primary target; desktop (Gossamer) is an optional external shell over the same bundle")
+    ("The Rust core is the single source of truth for note/notebook semantics — the UI must not fork the data model")
+    ("Rust core is compiled to WASM (wasm-bindgen) so the browser runs the real engine")
+    ("Deno is the only JS runtime/package manager — no npm/bun/yarn/pnpm CLIs")
+    ("Local-first: no core feature may require network access")
+    ("User data stored in human-readable JSON")
   )
 
   ; === Sensitive Areas (if in doubt, ask) ===
   (ask-before-touching
-    ; *REMINDER: List areas where LLMs should check before modifying*
-    ; "src/abi/ — formal proofs, changes require re-verification"
-    ; "ffi/zig/ — C ABI boundary, changes affect all language bindings"
-    ; ".machine_readable/ — checkpoint files, format is specified"
+    ".machine_readable/ — checkpoint files, format is specified"
+    ".github/workflows/ — estate governance workflows; removal requires approval"
+    "LICENSE and SPDX headers — never remove or modify"
+    "core/src/ data model — semantics mirrored by the UI; changes ripple across the WASM boundary"
   )
 
   ; === Ecosystem Position ===
   (ecosystem
-    (belongs-to "{{MONOREPO_OR_STANDALONE}}")
-    (depends-on ("{{DEP1}}" "{{DEP2}}"))
-    (depended-on-by ("{{CONSUMER1}}" "{{CONSUMER2}}"))
+    (belongs-to "standalone repo within the hyperpolymath estate")
+    (depends-on ("gossamer (optional — desktop shell only, external sibling checkout)"))
+    (depended-on-by ())
   )
 )

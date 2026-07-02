@@ -1,223 +1,143 @@
 // SPDX-License-Identifier: MPL-2.0
-/// Update function - handles all state transitions
+/// Update function — handles all state transitions.
+///
+/// All notebook mutations delegate to the Rust core (WasmStore); the
+/// model's notebook is a read model patched with what the core returns.
+/// The dicts are mutated in place — a new notebook record is produced per
+/// transition so React re-renders, but older model values must not be
+/// treated as immutable history.
 
 open Types
 open Model
 open Msg
 
-/// Helper to update a note in the notebook
-let updateNoteInNotebook = (notebook: notebook, id: noteId, updater: note => note): notebook => {
-  switch Js.Dict.get(notebook.notes, id) {
-  | Some(note) =>
-    let now = Js.Date.toISOString(Js.Date.make())
-    let updatedNote = {...updater(note), modifiedAt: now}
-    let newNotes = Js.Dict.fromArray(
-      Js.Dict.entries(notebook.notes)->Array.map(((k, v)) =>
-        if k == id {
-          (k, updatedNote)
-        } else {
-          (k, v)
-        }
-      ),
-    )
-    {...notebook, notes: newNotes, modifiedAt: now}
-  | None => notebook
-  }
+%%private(
+  let deleteKey: (Js.Dict.t<'a>, string) => unit = %raw(`(dict, key) => { delete dict[key] }`)
+)
+
+/// Upsert a single note view returned by the core.
+let setNote = (notebook: notebook, note: note): notebook => {
+  Js.Dict.set(notebook.notes, note.id, note)
+  {...notebook, modifiedAt: note.modifiedAt}
 }
 
-/// Add a note to the notebook
-let addNoteToNotebook = (notebook: notebook, note: note): notebook => {
-  let now = Js.Date.toISOString(Js.Date.make())
-  let newNotes = Js.Dict.fromArray(
-    Array.concat(Js.Dict.entries(notebook.notes), [(note.id, note)]),
-  )
-  {...notebook, notes: newNotes, modifiedAt: now}
-}
-
-/// Remove a note from the notebook
-let removeNoteFromNotebook = (notebook: notebook, id: noteId): notebook => {
-  let now = Js.Date.toISOString(Js.Date.make())
-  let newNotes = Js.Dict.fromArray(
-    Js.Dict.entries(notebook.notes)->Array.filter(((k, _)) => k != id),
-  )
-  // Also remove from backlinks and remove links to this note
-  let newBacklinks = Js.Dict.fromArray(
-    Js.Dict.entries(notebook.backlinks)
-    ->Array.filter(((k, _)) => k != id)
-    ->Array.map(((k, v)) => (k, v->Array.filter(linkId => linkId != id))),
-  )
-  {...notebook, notes: newNotes, backlinks: newBacklinks, modifiedAt: now}
-}
-
-/// Add a link between notes
-let addLinkToNotebook = (notebook: notebook, fromId: noteId, toId: noteId): notebook => {
-  // Add forward link
-  let notebook = updateNoteInNotebook(notebook, fromId, note => {
-    if !Array.includes(note.links, toId) {
-      {...note, links: Array.concat(note.links, [toId])}
-    } else {
-      note
-    }
+/// Apply a topology delta returned by the core.
+let applyDelta = (notebook: notebook, delta: WasmStore.delta): notebook => {
+  delta.changed->Array.forEach(note => Js.Dict.set(notebook.notes, note.id, note))
+  delta.removed->Array.forEach(id => {
+    deleteKey(notebook.notes, id)
+    deleteKey(notebook.backlinks, id)
   })
-
-  // Add backlink
-  let currentBacklinks = switch Js.Dict.get(notebook.backlinks, toId) {
-  | Some(links) => links
-  | None => []
-  }
-  if !Array.includes(currentBacklinks, fromId) {
-    let newBacklinks = Js.Dict.fromArray(
-      Array.concat(
-        Js.Dict.entries(notebook.backlinks)->Array.filter(((k, _)) => k != toId),
-        [(toId, Array.concat(currentBacklinks, [fromId]))],
-      ),
-    )
-    {...notebook, backlinks: newBacklinks}
-  } else {
-    notebook
-  }
-}
-
-/// Remove a link between notes
-let removeLinkFromNotebook = (notebook: notebook, fromId: noteId, toId: noteId): notebook => {
-  // Remove forward link
-  let notebook = updateNoteInNotebook(notebook, fromId, note => {
-    {...note, links: note.links->Array.filter(id => id != toId)}
-  })
-
-  // Remove backlink
-  let currentBacklinks = switch Js.Dict.get(notebook.backlinks, toId) {
-  | Some(links) => links
-  | None => []
-  }
-  let newBacklinks = Js.Dict.fromArray(
-    Array.concat(
-      Js.Dict.entries(notebook.backlinks)->Array.filter(((k, _)) => k != toId),
-      [(toId, currentBacklinks->Array.filter(id => id != fromId))],
-    ),
+  Js.Dict.entries(delta.backlinks)->Array.forEach(((id, sources)) =>
+    Js.Dict.set(notebook.backlinks, id, sources)
   )
-  {...notebook, backlinks: newBacklinks}
+  // Spread with a no-op override: a fresh record identity so React re-renders.
+  {...notebook, name: notebook.name}
 }
 
-/// Simple search implementation
-let searchNotes = (notebook: notebook, query: string): array<noteId> => {
-  if query == "" {
-    []
-  } else {
-    let queryLower = String.toLowerCase(query)
-    Js.Dict.entries(notebook.notes)
-    ->Array.filter(((_, note)) => {
-      String.toLowerCase(note.title)->String.includes(queryLower) ||
-        String.toLowerCase(note.content)->String.includes(queryLower)
-    })
-    ->Array.map(((id, _)) => id)
+let patchNote = (model: model, result: result<note, string>): model =>
+  switch result {
+  | Ok(note) => {...model, notebook: setNote(model.notebook, note), dirty: true}
+  | Error(message) => {...model, error: Some(message)}
   }
-}
 
 /// The main update function
-let update = (model: model, msg: msg): model => {
+let rec update = (model: model, msg: msg): model => {
   switch msg {
   // Note CRUD
   | CreateNote =>
-    let note = Note.make(~title="New Note")
-    {
-      ...model,
-      notebook: addNoteToNotebook(model.notebook, note),
-      selection: SingleNote(note.id),
-      editingNote: Some(note.id),
-      dirty: true,
+    switch WasmStore.createNote("New Note") {
+    | Ok(note) => {
+        ...model,
+        notebook: setNote(model.notebook, note),
+        selection: SingleNote(note.id),
+        editingNote: Some(note.id),
+        dirty: true,
+      }
+    | Error(message) => {...model, error: Some(message)}
     }
 
   | CreateNoteAt(position) =>
-    let note = Note.make(~title="New Note")->Note.withPosition(position.x, position.y)
-    {
-      ...model,
-      notebook: addNoteToNotebook(model.notebook, note),
-      selection: SingleNote(note.id),
-      editingNote: Some(note.id),
-      dirty: true,
+    switch WasmStore.createNoteAt("New Note", position.x, position.y) {
+    | Ok(note) => {
+        ...model,
+        notebook: setNote(model.notebook, note),
+        selection: SingleNote(note.id),
+        editingNote: Some(note.id),
+        dirty: true,
+      }
+    | Error(message) => {...model, error: Some(message)}
     }
 
-  | DeleteNote(id) => {
-      ...model,
-      notebook: removeNoteFromNotebook(model.notebook, id),
-      selection: switch model.selection {
-      | SingleNote(selectedId) if selectedId == id => NoSelection
-      | MultipleNotes(ids) => {
-          let remaining = ids->Array.filter(i => i != id)
-          switch remaining {
-          | [] => NoSelection
-          | [single] => SingleNote(single)
-          | multiple => MultipleNotes(multiple)
+  | DeleteNote(id) =>
+    switch WasmStore.deleteNote(id) {
+    | Ok(delta) => {
+        ...model,
+        notebook: applyDelta(model.notebook, delta),
+        selection: switch model.selection {
+        | SingleNote(selectedId) if selectedId == id => NoSelection
+        | MultipleNotes(ids) => {
+            let remaining = ids->Array.filter(i => i != id)
+            switch remaining {
+            | [] => NoSelection
+            | [single] => SingleNote(single)
+            | multiple => MultipleNotes(multiple)
+            }
           }
-        }
-      | other => other
-      },
-      editingNote: switch model.editingNote {
-      | Some(editId) if editId == id => None
-      | other => other
-      },
-      dirty: true,
+        | other => other
+        },
+        editingNote: switch model.editingNote {
+        | Some(editId) if editId == id => None
+        | other => other
+        },
+        dirty: true,
+      }
+    | Error(message) => {...model, error: Some(message)}
     }
 
   | DeleteSelectedNotes =>
-    switch model.selection {
-    | NoSelection => model
-    | SingleNote(id) => update(model, DeleteNote(id))
-    | MultipleNotes(ids) =>
-      ids->Array.reduce(model, (m, id) => update(m, DeleteNote(id)))
+    // Guarded here rather than in the keyboard handler so the check always
+    // sees current state (the handler is registered once and would capture a
+    // stale model).
+    switch model.editingNote {
+    | Some(_) => model
+    | None =>
+      switch model.selection {
+      | NoSelection => model
+      | SingleNote(id) => update(model, DeleteNote(id))
+      | MultipleNotes(ids) => ids->Array.reduce(model, (m, id) => update(m, DeleteNote(id)))
+      }
     }
 
   // Note editing
-  | UpdateNoteTitle(id, title) => {
-      ...model,
-      notebook: updateNoteInNotebook(model.notebook, id, note => {...note, title}),
-      dirty: true,
-    }
+  | UpdateNoteTitle(id, title) => patchNote(model, WasmStore.updateTitle(id, title))
 
-  | UpdateNoteContent(id, content) => {
-      ...model,
-      notebook: updateNoteInNotebook(model.notebook, id, note => {...note, content}),
-      dirty: true,
-    }
+  | UpdateNoteContent(id, content) => patchNote(model, WasmStore.updateContent(id, content))
 
   | StartEditingNote(id) => {...model, editingNote: Some(id)}
 
   | StopEditingNote => {...model, editingNote: None}
 
   // Note positioning
-  | MoveNote(id, position) => {
-      ...model,
-      notebook: updateNoteInNotebook(model.notebook, id, note => {
-        {...note, position: Some(position)}
-      }),
-      dirty: true,
-    }
+  | MoveNote(id, position) => patchNote(model, WasmStore.moveNote(id, position.x, position.y))
 
-  | ResizeNote(id, width, height) => {
-      ...model,
-      notebook: updateNoteInNotebook(model.notebook, id, note => {
-        {...note, size: Some((width, height))}
-      }),
-      dirty: true,
-    }
+  | ResizeNote(id, width, height) => patchNote(model, WasmStore.resizeNote(id, width, height))
 
   // Links
   | LinkNotes(fromId, toId) =>
     if fromId == toId {
       model
     } else {
-      {
-        ...model,
-        notebook: addLinkToNotebook(model.notebook, fromId, toId),
-        dirty: true,
+      switch WasmStore.link(fromId, toId) {
+      | Ok(delta) => {...model, notebook: applyDelta(model.notebook, delta), dirty: true}
+      | Error(message) => {...model, error: Some(message)}
       }
     }
 
-  | UnlinkNotes(fromId, toId) => {
-      ...model,
-      notebook: removeLinkFromNotebook(model.notebook, fromId, toId),
-      dirty: true,
+  | UnlinkNotes(fromId, toId) =>
+    switch WasmStore.unlink(fromId, toId) {
+    | Ok(delta) => {...model, notebook: applyDelta(model.notebook, delta), dirty: true}
+    | Error(message) => {...model, error: Some(message)}
     }
 
   // Selection
@@ -281,7 +201,7 @@ let update = (model: model, msg: msg): model => {
   | SetSearchQuery(query) => {
       ...model,
       searchQuery: query,
-      searchResults: searchNotes(model.notebook, query),
+      searchResults: query == "" ? [] : WasmStore.search(query),
     }
 
   | ClearSearch => {...model, searchQuery: "", searchResults: []}
@@ -289,15 +209,46 @@ let update = (model: model, msg: msg): model => {
   // File operations
   | NewNotebook => {
       ...initial(),
+      notebook: WasmStore.reset("Untitled Notebook"),
       viewMode: model.viewMode,
       sidebarOpen: model.sidebarOpen,
     }
 
-  | SaveNotebook => model // Handled by command in full TEA setup
+  | SaveNotebook =>
+    switch WasmStore.toJson() {
+    | Ok(json) => {
+        Persist.saveToFile(model.notebook.name, json)
+        {...model, dirty: false}
+      }
+    | Error(message) => {...model, error: Some(message)}
+    }
 
-  | SaveNotebookAs(_path) => model // Handled by command
+  | SaveNotebookAs(name) =>
+    switch WasmStore.toJson() {
+    | Ok(json) => {
+        Persist.saveToFile(name, json)
+        {...model, dirty: false}
+      }
+    | Error(message) => {...model, error: Some(message)}
+    }
 
-  | LoadNotebook(_path) => model // Handled by command
+  | LoadNotebook(_path) => {
+      // Async: the picker resolves after update() returns; the result comes
+      // back through Dispatcher as NotebookLoaded / SetError.
+      Persist.openFile()
+      ->Promise.thenResolve(content =>
+        switch content {
+        | Some(json) =>
+          switch WasmStore.loadFromJson(json) {
+          | Ok(snapshot) => Dispatcher.dispatch(NotebookLoaded(snapshot))
+          | Error(message) => Dispatcher.dispatch(SetError(message))
+          }
+        | None => ()
+        }
+      )
+      ->ignore
+      model
+    }
 
   | NotebookLoaded(notebook) => {
       ...model,
@@ -305,6 +256,9 @@ let update = (model: model, msg: msg): model => {
       dirty: false,
       selection: NoSelection,
       editingNote: None,
+      searchQuery: "",
+      searchResults: [],
+      error: None,
     }
 
   | NotebookSaved => {...model, dirty: false}
