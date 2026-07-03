@@ -15,9 +15,9 @@ image:https://img.shields.io/badge/Core-Rust%20%2B%20WASM-red.svg[Rust + WASM]
 
 toc::[]
 
-== What is Nexia?
+== What is Nexia-List?
 
-Nexia is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
+Nexia-List is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox]. It provides:
 
 * **Spatial Canvas** - Arrange notes visually, see relationships at a glance
 * **Linked Notes** - First-class bidirectional links between ideas
