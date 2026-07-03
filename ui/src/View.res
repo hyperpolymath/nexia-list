@@ -160,13 +160,36 @@ module Sidebar = {
 }
 
 module NoteEditor = {
+  // A note's display title, resolved from the model (falls back gracefully).
+  let titleOf = (model: model, id: noteId): string =>
+    switch getNote(model, id) {
+    | Some(n) => n.title != "" ? n.title : "Untitled"
+    | None => "(unknown)"
+    }
+
   @react.component
-  let make = (~note: note, ~dispatch: msg => unit) => {
+  let make = (~model: model, ~note: note, ~dispatch: msg => unit) => {
+    let (linkQuery, setLinkQuery) = React.useState(() => "")
+    let backlinks = getBacklinks(model, note.id)
+
+    // Candidate targets for the "add link" picker: other notes not already
+    // linked, filtered by the picker query.
+    let candidates =
+      allNotes(model)
+      ->Array.filter(n => {
+        n.id != note.id &&
+        !Array.includes(note.links, n.id) &&
+        (linkQuery == "" ||
+          String.includes(String.toLowerCase(n.title), String.toLowerCase(linkQuery)))
+      })
+      ->Array.toSorted((a, b) => String.localeCompare(a.title, b.title))
+
     <div className="note-editor">
       <input
         type_="text"
         className="note-title-input"
         placeholder="Note title"
+        ariaLabel="Note title"
         value={note.title}
         onChange={e =>
           dispatch(UpdateNoteTitle(note.id, ReactEvent.Form.target(e)["value"]))}
@@ -174,7 +197,8 @@ module NoteEditor = {
       />
       <textarea
         className="note-content-input"
-        placeholder="Start writing..."
+        placeholder="Start writing... use [[Title]] to link notes"
+        ariaLabel="Note content"
         value={note.content}
         onChange={e =>
           dispatch(UpdateNoteContent(note.id, ReactEvent.Form.target(e)["value"]))}
@@ -183,19 +207,66 @@ module NoteEditor = {
         <span> {React.string(`Created: ${note.createdAt}`)} </span>
         <span> {React.string(`Modified: ${note.modifiedAt}`)} </span>
       </div>
-      {note.links->Array.length > 0
-        ? <div className="note-links">
-            <h4> {React.string("Links")} </h4>
-            <ul>
+
+      <div className="note-links">
+        <h4> {React.string("Links")} </h4>
+        {note.links->Array.length > 0
+          ? <ul>
               {note.links
               ->Array.map(linkId =>
                 <li key={linkId}>
-                  <button onClick={_ => dispatch(SelectNote(linkId))}>
-                    {React.string(linkId)}
+                  <button className="link-target" onClick={_ => dispatch(SelectNote(linkId))}>
+                    {React.string(titleOf(model, linkId))}
                   </button>
                   <button
-                    onClick={_ => dispatch(UnlinkNotes(note.id, linkId))} className="btn-remove">
+                    ariaLabel={`Remove link to ${titleOf(model, linkId)}`}
+                    onClick={_ => dispatch(UnlinkNotes(note.id, linkId))}
+                    className="btn-remove">
                     {React.string("×")}
+                  </button>
+                </li>
+              )
+              ->React.array}
+            </ul>
+          : <p className="muted"> {React.string("No links yet.")} </p>}
+        <div className="link-picker">
+          <input
+            type_="text"
+            placeholder="Link to a note..."
+            ariaLabel="Link to a note"
+            value={linkQuery}
+            onChange={e => setLinkQuery(_ => ReactEvent.Form.target(e)["value"])}
+          />
+          {linkQuery != ""
+            ? <ul className="link-candidates">
+                {candidates
+                ->Array.slice(~start=0, ~end=8)
+                ->Array.map(candidate =>
+                  <li key={candidate.id}>
+                    <button
+                      onClick={_ => {
+                        dispatch(LinkNotes(note.id, candidate.id))
+                        setLinkQuery(_ => "")
+                      }}>
+                      {React.string(candidate.title != "" ? candidate.title : "Untitled")}
+                    </button>
+                  </li>
+                )
+                ->React.array}
+              </ul>
+            : React.null}
+        </div>
+      </div>
+
+      {backlinks->Array.length > 0
+        ? <div className="note-backlinks">
+            <h4> {React.string("Linked from")} </h4>
+            <ul>
+              {backlinks
+              ->Array.map(sourceId =>
+                <li key={sourceId}>
+                  <button className="link-target" onClick={_ => dispatch(SelectNote(sourceId))}>
+                    {React.string(titleOf(model, sourceId))}
                   </button>
                 </li>
               )
@@ -217,7 +288,7 @@ module ListView = {
 
     <div className="list-view">
       {switch selectedNote {
-      | Some(note) => <NoteEditor note dispatch />
+      | Some(note) => <NoteEditor model note dispatch />
       | None =>
         <div className="empty-state">
           <p> {React.string("Select a note or create a new one")} </p>
@@ -231,11 +302,65 @@ module ListView = {
 }
 
 module CanvasView = {
+  // Transient drag state (a note being moved) held in a ref so pointer moves
+  // don't re-render until they dispatch. Zoom is captured at drag start.
+  type dragState = {
+    id: noteId,
+    startX: float,
+    startY: float,
+    origX: float,
+    origY: float,
+    zoom: float,
+  }
+  // Transient pan state: the last pointer position, panned incrementally.
+  type panState = {lastX: float, lastY: float}
+
   @react.component
   let make = (~model: model, ~dispatch: msg => unit) => {
     let notes = allNotes(model)->Array.filter(n => n.position->Option.isSome)
+    let dragRef = React.useRef(None)
+    let panRef = React.useRef(None)
 
-    <div className="canvas-view">
+    // One set of document listeners handles both note drag and background pan,
+    // so the gesture continues even when the pointer leaves the element.
+    React.useEffect0(() => {
+      let onMove = (e: DomBindings.mouseEvent) => {
+        let x = DomBindings.mouseClientX(e)
+        let y = DomBindings.mouseClientY(e)
+        switch dragRef.current {
+        | Some(d) =>
+          dispatch(MoveNote(d.id, {x: d.origX +. (x -. d.startX) /. d.zoom, y: d.origY +. (y -. d.startY) /. d.zoom}))
+        | None =>
+          switch panRef.current {
+          | Some(p) => {
+              dispatch(PanCanvas(x -. p.lastX, y -. p.lastY))
+              panRef.current = Some({lastX: x, lastY: y})
+            }
+          | None => ()
+          }
+        }
+      }
+      let onUp = (_: DomBindings.mouseEvent) => {
+        dragRef.current = None
+        panRef.current = None
+      }
+      DomBindings.addMouseMove(onMove)
+      DomBindings.addMouseUp(onUp)
+      Some(() => {
+        DomBindings.removeMouseMove(onMove)
+        DomBindings.removeMouseUp(onUp)
+      })
+    })
+
+    <div
+      className="canvas-view"
+      onMouseDown={e =>
+        // Background press starts a pan (notes stop propagation below).
+        panRef.current = Some({
+          lastX: ReactEvent.Mouse.clientX(e)->Int.toFloat,
+          lastY: ReactEvent.Mouse.clientY(e)->Int.toFloat,
+        })}
+      onWheel={e => dispatch(ZoomCanvas(ReactEvent.Wheel.deltaY(e) < 0.0 ? 1.1 : 0.9))}>
       <div
         className="canvas"
         style={ReactDOM.Style.make(
@@ -269,7 +394,20 @@ module CanvasView = {
               ~top=`${pos.y->Float.toString}px`,
               (),
             )}
-            onClick={_ => dispatch(SelectNote(note.id))}
+            onMouseDown={e => {
+              // A note press selects and starts a drag; keep it off the pan.
+              ReactEvent.Mouse.stopPropagation(e)
+              ReactEvent.Mouse.preventDefault(e)
+              dispatch(ReactEvent.Mouse.shiftKey(e) ? AddToSelection(note.id) : SelectNote(note.id))
+              dragRef.current = Some({
+                id: note.id,
+                startX: ReactEvent.Mouse.clientX(e)->Int.toFloat,
+                startY: ReactEvent.Mouse.clientY(e)->Int.toFloat,
+                origX: pos.x,
+                origY: pos.y,
+                zoom: model.viewport.zoom,
+              })
+            }}
             onKeyDown={e => onActivateKey(() => dispatch(StartEditingNote(note.id)), e)}
             onDoubleClick={e => {
               ReactEvent.Mouse.stopPropagation(e)

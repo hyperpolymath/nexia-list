@@ -3,6 +3,7 @@
 
 use crate::agent::{note_matches, Agent};
 use crate::note::{Note, NoteId};
+use crate::wikilink::wikilink_targets;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
@@ -166,6 +167,40 @@ impl Notebook {
         Ok(())
     }
 
+    /// Set a note's content and add links for any `[[Title]]` it now names
+    /// (resolved case-insensitively against existing titles). Additive: a
+    /// wiki-link is never *removed* when its text is deleted — use the
+    /// explicit unlink for that. Returns the ids of notes newly linked to.
+    pub fn set_content(&mut self, id: &NoteId, content: impl Into<String>) -> Vec<NoteId> {
+        let content = content.into();
+        let targets = wikilink_targets(&content);
+        match self.notes.get_mut(id) {
+            Some(note) => {
+                note.content = content;
+                note.touch();
+            }
+            None => return Vec::new(),
+        }
+        // Resolve titles → ids once.
+        let title_map: HashMap<String, NoteId> = self
+            .notes
+            .values()
+            .map(|n| (n.title.to_lowercase(), n.id))
+            .collect();
+
+        let mut newly_linked = Vec::new();
+        for target in targets {
+            if let Some(&target_id) = title_map.get(&target.to_lowercase()) {
+                let already = self.get_note(id).is_some_and(|n| n.links_to(&target_id));
+                if target_id != *id && !already && self.link_notes(*id, target_id).is_ok() {
+                    newly_linked.push(target_id);
+                }
+            }
+        }
+        self.touch();
+        newly_linked
+    }
+
     /// Get all notes that link TO the given note
     pub fn get_backlinks(&self, id: &NoteId) -> Vec<NoteId> {
         self.backlinks
@@ -318,6 +353,25 @@ mod tests {
 
         let backlinks = notebook.get_backlinks(&id2);
         assert!(backlinks.contains(&id1));
+    }
+
+    #[test]
+    fn test_set_content_derives_wikilinks() {
+        let mut notebook = Notebook::new("Test");
+        let a = notebook.create_note("Alpha");
+        let b = notebook.create_note("Beta");
+
+        // Case-insensitive resolution; self-reference ignored.
+        let linked = notebook.set_content(&a, "see [[beta]] and [[Alpha]]");
+        assert_eq!(linked, vec![b]);
+        assert!(notebook.get_note(&a).unwrap().links_to(&b));
+        assert!(!notebook.get_note(&a).unwrap().links_to(&a));
+        assert_eq!(notebook.get_backlinks(&b), vec![a]);
+
+        // Unresolved titles are ignored; already-linked targets aren't re-added.
+        let linked2 = notebook.set_content(&a, "[[beta]] again and [[Ghost]]");
+        assert!(linked2.is_empty());
+        assert_eq!(notebook.get_note(&a).unwrap().links.len(), 1);
     }
 
     #[test]

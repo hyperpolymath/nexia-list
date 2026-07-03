@@ -28,7 +28,7 @@ external fromJsonRaw: string => t = "from_json"
 @send external createNoteRaw: (t, string) => note = "create_note"
 @send external createNoteAtRaw: (t, string, float, float) => note = "create_note_at"
 @send external updateTitleRaw: (t, noteId, string) => note = "update_title"
-@send external updateContentRaw: (t, noteId, string) => note = "update_content"
+@send external updateContentRaw: (t, noteId, string) => delta = "update_content"
 @send external moveNoteRaw: (t, noteId, float, float) => note = "move_note"
 @send external resizeNoteRaw: (t, noteId, float, float) => note = "resize_note"
 @send external deleteNoteRaw: (t, noteId) => delta = "delete_note"
@@ -110,7 +110,7 @@ let createNoteAt = (title: string, x: float, y: float) =>
   tryNote(() => createNoteAtRaw(instance(), title, x, y))
 let updateTitle = (id: noteId, title: string) => tryNote(() => updateTitleRaw(instance(), id, title))
 let updateContent = (id: noteId, content: string) =>
-  tryNote(() => updateContentRaw(instance(), id, content))
+  tryDelta(() => updateContentRaw(instance(), id, content))
 let moveNote = (id: noteId, x: float, y: float) => tryNote(() => moveNoteRaw(instance(), id, x, y))
 let resizeNote = (id: noteId, width: float, height: float) =>
   tryNote(() => resizeNoteRaw(instance(), id, width, height))

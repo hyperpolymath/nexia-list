@@ -257,10 +257,38 @@ impl WasmNotebook {
         })
     }
 
+    /// Update content and derive `[[Title]]` links. Returns a delta because
+    /// editing content can add links (changing the note and target backlinks).
     pub fn update_content(&mut self, id: &str, content: &str) -> Result<JsValue, JsValue> {
-        self.with_note(id, |note| {
-            note.content = content.to_string();
-            note.touch();
+        let uuid = parse_id(id)?;
+        if self.inner.get_note(&uuid).is_none() {
+            return Err(err(format!("Note not found: {id}")));
+        }
+        let newly_linked = self.inner.set_content(&uuid, content);
+
+        let changed = self
+            .inner
+            .get_note(&uuid)
+            .map(NoteView::from)
+            .into_iter()
+            .collect();
+        let backlinks = newly_linked
+            .iter()
+            .map(|target| {
+                (
+                    target.to_string(),
+                    self.inner
+                        .get_backlinks(target)
+                        .iter()
+                        .map(Uuid::to_string)
+                        .collect(),
+                )
+            })
+            .collect();
+        to_js(&DeltaView {
+            changed,
+            removed: Vec::new(),
+            backlinks,
         })
     }
 

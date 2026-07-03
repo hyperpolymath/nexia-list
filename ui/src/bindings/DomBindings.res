@@ -32,3 +32,18 @@ let isTyping = (e: keyboardEvent): bool =>
   | "INPUT" | "TEXTAREA" => true
   | _ => false
   }
+
+// Document-level mouse tracking for canvas drag / pan (events must be caught
+// even when the pointer leaves the note being dragged).
+type mouseEvent
+@get external mouseClientX: mouseEvent => float = "clientX"
+@get external mouseClientY: mouseEvent => float = "clientY"
+
+@val @scope("document")
+external addMouseMove: (@as("mousemove") _, mouseEvent => unit) => unit = "addEventListener"
+@val @scope("document")
+external removeMouseMove: (@as("mousemove") _, mouseEvent => unit) => unit = "removeEventListener"
+@val @scope("document")
+external addMouseUp: (@as("mouseup") _, mouseEvent => unit) => unit = "addEventListener"
+@val @scope("document")
+external removeMouseUp: (@as("mouseup") _, mouseEvent => unit) => unit = "removeEventListener"

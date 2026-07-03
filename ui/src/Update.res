@@ -120,7 +120,11 @@ and step = (model: model, msg: msg): model => {
   // Note editing
   | UpdateNoteTitle(id, title) => patchNote(model, WasmStore.updateTitle(id, title))
 
-  | UpdateNoteContent(id, content) => patchNote(model, WasmStore.updateContent(id, content))
+  | UpdateNoteContent(id, content) =>
+    switch WasmStore.updateContent(id, content) {
+    | Ok(delta) => {...model, notebook: applyDelta(model.notebook, delta), dirty: true}
+    | Error(message) => {...model, error: Some(message)}
+    }
 
   | StartEditingNote(id) => {...model, editingNote: Some(id)}
 
