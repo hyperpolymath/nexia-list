@@ -38,6 +38,11 @@ external fromJsonRaw: string => t = "from_json"
 @send external snapshotRaw: t => notebook = "snapshot"
 @send external toJsonRaw: t => string = "to_json"
 
+type markdownFile = {name: string, content: string}
+@send external exportMarkdownRaw: t => array<markdownFile> = "export_markdown"
+@send external exportOpmlRaw: t => string = "export_opml"
+@send external importVaultRaw: (t, array<markdownFile>) => notebook = "import_markdown_vault"
+
 let current: ref<option<t>> = ref(None)
 
 exception StoreNotInitialized
@@ -109,3 +114,19 @@ let link = (fromId: noteId, toId: noteId) => tryDelta(() => linkRaw(instance(), 
 let unlink = (fromId: noteId, toId: noteId) => tryDelta(() => unlinkRaw(instance(), fromId, toId))
 
 let search = (query: string): array<noteId> => searchRaw(instance(), query)
+
+let exportMarkdown = (): result<array<markdownFile>, string> =>
+  try Ok(exportMarkdownRaw(instance())) catch {
+  | e => Error(errorMessage(e, "Could not export Markdown"))
+  }
+
+let exportOpml = (): result<string, string> =>
+  try Ok(exportOpmlRaw(instance())) catch {
+  | e => Error(errorMessage(e, "Could not export OPML"))
+  }
+
+/// Replace the current notebook by importing a Markdown vault.
+let importVault = (files: array<markdownFile>): result<notebook, string> =>
+  try Ok(importVaultRaw(instance(), files)) catch {
+  | e => Error(errorMessage(e, "Could not import vault"))
+  }
