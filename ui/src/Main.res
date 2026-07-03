@@ -33,21 +33,42 @@ module App = {
       let handleKeyDown = (e: DomBindings.keyboardEvent) => {
         let key = DomBindings.key(e)
         let modKey = DomBindings.ctrlKey(e) || DomBindings.metaKey(e)
+        let typing = DomBindings.isTyping(e)
 
-        switch (modKey, key) {
-        | (true, "n") => {
+        // Arrow keys drive keyboard-only canvas navigation. Alt+arrow nudges
+        // the selected note; a plain arrow moves the selection. Suppressed
+        // while typing so text fields keep their caret movement.
+        let arrow = switch key {
+        | "ArrowUp" => Some(Types.Up)
+        | "ArrowDown" => Some(Types.Down)
+        | "ArrowLeft" => Some(Types.Left)
+        | "ArrowRight" => Some(Types.Right)
+        | _ => None
+        }
+
+        switch (modKey, key, arrow, typing) {
+        | (true, "n", _, _) => {
             DomBindings.preventDefault(e)
             dispatch(Msg.CreateNote)
           }
-        | (true, "s") => {
+        | (true, "s", _, _) => {
             DomBindings.preventDefault(e)
             dispatch(Msg.SaveNotebook)
           }
-        | (false, "Escape") => {
+        | (_, _, Some(direction), false) => {
+            DomBindings.preventDefault(e)
+            if DomBindings.altKey(e) {
+              dispatch(Msg.NudgeSelectedNote(direction))
+            } else {
+              dispatch(Msg.NavigateCanvas(direction))
+            }
+          }
+        | (false, "Escape", _, _) => {
             dispatch(Msg.ClearSelection)
             dispatch(Msg.StopEditingNote)
           }
-        | (false, "Delete") | (false, "Backspace") => dispatch(Msg.DeleteSelectedNotes)
+        | (false, "Delete", _, false) | (false, "Backspace", _, false) =>
+          dispatch(Msg.DeleteSelectedNotes)
         | _ => ()
         }
       }
@@ -59,6 +80,15 @@ module App = {
     <View model dispatch />
   }
 }
+
+// Register the offline service worker (best-effort; never blocks startup).
+%%raw(`
+if ("serviceWorker" in navigator) {
+  globalThis.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  });
+}
+`)
 
 let start = async () => {
   try {

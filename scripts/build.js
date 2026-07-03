@@ -27,6 +27,7 @@ for (
     "styles.css",
     "manifest.webmanifest",
     "service-worker.js",
+    "icon.svg",
   ]
 ) {
   try {

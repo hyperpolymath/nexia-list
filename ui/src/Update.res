@@ -197,6 +197,39 @@ let rec update = (model: model, msg: msg): model => {
 
   | ResetViewport => {...model, viewport: Viewport.initial()}
 
+  // Move the selection to the nearest note in a direction (keyboard nav).
+  | NavigateCanvas(direction) =>
+    switch model.selection {
+    | SingleNote(id) =>
+      switch Navigation.nearestInDirection(~notes=allNotes(model), ~fromId=id, ~direction) {
+      | Some(next) => {...model, selection: SingleNote(next)}
+      | None => model
+      }
+    | _ =>
+      // Nothing focused yet: select the first positioned note, if any.
+      switch allNotes(model)->Array.find(n => n.position->Option.isSome) {
+      | Some(note) => {...model, selection: SingleNote(note.id)}
+      | None => model
+      }
+    }
+
+  // Nudge the selected note (modifier+arrow); the mouse equivalent is PR-D.
+  | NudgeSelectedNote(direction) =>
+    switch model.selection {
+    | SingleNote(id) =>
+      switch Model.getNote(model, id) {
+      | Some(note) =>
+        let base = switch note.position {
+        | Some(p) => p
+        | None => {x: 0.0, y: 0.0}
+        }
+        let next = Navigation.nudge(~position=base, ~direction)
+        patchNote(model, WasmStore.moveNote(id, next.x, next.y))
+      | None => model
+      }
+    | _ => model
+    }
+
   // Search
   | SetSearchQuery(query) => {
       ...model,
