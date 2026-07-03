@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
-//! Nexia Core — Knowledge Graph and Note Engine.
+//! Nexia-List Core — Knowledge Graph and Note Engine.
 //!
-//! This crate provides the foundational data structures for the Nexia
+//! This crate provides the foundational data structures for the Nexia-List
 //! ecosystem. It treats notes as nodes in a multi-dimensional graph,
 //! supporting bidirectional linking and spatial arrangement.
 //!

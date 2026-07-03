@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
-= Nexia
+= Nexia-List
 :toc: macro
 :toc-title: Contents
 :toclevels: 3
@@ -31,7 +31,7 @@ Nexia-List is an open-source, local-first knowledge management tool inspired by 
 [quote]
 Your knowledge is yours. Not in a cloud you don't control. Not locked in a proprietary format. Not dependent on a company's survival.
 
-Nexia follows the **local-first** philosophy:
+Nexia-List follows the **local-first** philosophy:
 
 . Data stored in human-readable formats (JSON)
 . Works offline by default
@@ -40,7 +40,7 @@ Nexia follows the **local-first** philosophy:
 
 == Architecture
 
-Nexia is **web-first**. The primary target is the browser: the Rust core is
+Nexia-List is **web-first**. The primary target is the browser: the Rust core is
 compiled to WebAssembly so the real engine runs client-side, with no server
 required. A desktop shell is optional and external.
 

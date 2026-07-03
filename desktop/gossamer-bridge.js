@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)
 
 /**
- * gossamer-bridge.js — Unified IPC bridge for Nexia desktop app.
+ * gossamer-bridge.js — Unified IPC bridge for Nexia-List desktop app.
  *
  * Detects the available runtime (Gossamer or browser-only) and
  * dispatches `invoke` / `listen` calls to the appropriate backend.

@@ -1,6 +1,6 @@
 {
-  "name": "Nexia",
-  "short_name": "Nexia",
+  "name": "Nexia-List",
+  "short_name": "Nexia-List",
   "description": "Local-first spatial knowledge management",
   "start_url": "./",
   "scope": "./",

@@ -2,11 +2,11 @@
 <!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
 <!-- Last updated: 2026-07-02 -->
 
-# Nexia — Project Topology
+# Nexia-List — Project Topology
 
 ## System Architecture
 
-Nexia is **web-first**: the browser is the primary target, running the real
+Nexia-List is **web-first**: the browser is the primary target, running the real
 Rust core compiled to WebAssembly. The desktop shell is optional and depends
 on an **external** sibling checkout of `hyperpolymath/gossamer`; it is
 intentionally not built in this repo's CI.

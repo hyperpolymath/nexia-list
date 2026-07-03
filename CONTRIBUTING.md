@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-# Contributing to Nexia
+# Contributing to Nexia-List
 
 ## Development Setup
 

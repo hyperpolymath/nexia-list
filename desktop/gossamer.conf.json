@@ -1,6 +1,6 @@
 {
   "$schema": "https://gossamer.dev/schemas/config/v1",
-  "productName": "Nexia",
+  "productName": "Nexia-List",
   "version": "0.1.0",
   "identifier": "com.hyperpolymath.nexia",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Nexia",
+        "title": "Nexia-List",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -83,7 +83,7 @@
     "resources": [],
     "copyright": "Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)",
     "license": "MPL-2.0",
-    "shortDescription": "Nexia desktop application",
+    "shortDescription": "Nexia-List desktop application",
     "longDescription": "",
     "linux": {
       "desktopEntry": true,

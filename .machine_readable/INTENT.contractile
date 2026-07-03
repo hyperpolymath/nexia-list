@@ -35,7 +35,7 @@
 
   ; === Purpose (what this repo IS) ===
   (purpose
-    "Nexia is a local-first, spatial personal knowledge management tool: notes arranged on a spatial canvas, first-class bidirectional links between them, and (planned) agents implemented as persistent queries that continuously organise the notebook. It is web-first — a ReScript TEA-style UI drives a Rust core compiled to WASM in the browser — and all user data lives on the user's device in human-readable JSON."
+    "Nexia-List is a local-first, spatial personal knowledge management tool: notes arranged on a spatial canvas, first-class bidirectional links between them, and (planned) agents implemented as persistent queries that continuously organise the notebook. It is web-first — a ReScript TEA-style UI drives a Rust core compiled to WASM in the browser — and all user data lives on the user's device in human-readable JSON."
   )
 
   ; === Anti-Purpose (what this repo is NOT — prevents scope creep) ===

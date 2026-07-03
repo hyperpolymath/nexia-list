@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)
 
 @abstract:
-Physical State contract for Nexia List. Baseline UX Manifesto invariants
+Physical State contract for Nexia-List List. Baseline UX Manifesto invariants
 that MUST hold at all times.
 @end
 

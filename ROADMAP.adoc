@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
-= Nexia Roadmap
+= Nexia-List Roadmap
 :toc: macro
 :toc-title: Phases
 :toclevels: 2
 :icons: font
 
-This document outlines the development phases for Nexia, from MVP to full-featured knowledge management platform.
+This document outlines the development phases for Nexia-List, from MVP to full-featured knowledge management platform.
 
 .Revised sequencing (2026-07)
 [NOTE]
 ====
-Nexia is now **web-first**: the Rust core is compiled to WASM and the browser
+Nexia-List is now **web-first**: the Rust core is compiled to WASM and the browser
 is the primary target (see link:docs/adr/0001-wasm-core-web-first.md[ADR-0001]).
 The desktop shell (Gossamer) is optional and external. Current sequencing:
 

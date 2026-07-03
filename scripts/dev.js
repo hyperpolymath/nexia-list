@@ -61,7 +61,7 @@ const { hosts, port } = await ctx.serve({
   servedir: `${root}web/dist`,
   port: 5173,
 });
-console.log(`Nexia dev server: http://${hosts[0] ?? "localhost"}:${port}/`);
+console.log(`Nexia-List dev server: http://${hosts[0] ?? "localhost"}:${port}/`);
 
 // Keep the process alive until interrupted; clean up the watcher on exit.
 Deno.addSignalListener("SIGINT", () => {

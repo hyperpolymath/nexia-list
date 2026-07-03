@@ -3,12 +3,12 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)
 
 @abstract:
-Declared intent and purpose for Nexia List.
+Declared intent and purpose for Nexia-List List.
 @end
 
 ## Purpose
 
-Nexia List — local-first spatial knowledge management: notes on a spatial canvas with bidirectional links, web-first (Rust core compiled to WASM, ReScript TEA-style UI), data stored as user-readable JSON.
+Nexia-List List — local-first spatial knowledge management: notes on a spatial canvas with bidirectional links, web-first (Rust core compiled to WASM, ReScript TEA-style UI), data stored as user-readable JSON.
 
 ## Anti-Purpose
 

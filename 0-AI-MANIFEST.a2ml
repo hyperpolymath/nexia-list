@@ -48,7 +48,7 @@ Bot-specific instructions for:
 
 ## REPOSITORY STRUCTURE
 
-Nexia is a local-first, web-first personal knowledge management tool inspired
+Nexia-List is a local-first, web-first personal knowledge management tool inspired
 by Tinderbox. It provides spatial canvas note arrangement, bidirectional
 linking, and (planned) intelligent agents and prototype inheritance. Built
 with a Rust core compiled to WASM (wasm-bindgen), a ReScript TEA-style UI on

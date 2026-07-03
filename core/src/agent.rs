@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-//! Agents — persistent saved queries, the feature Nexia is named for.
+//! Agents — persistent saved queries, the feature Nexia-List is named for.
 //!
 //! An agent stores a small query written in a whitespace-separated DSL; the
 //! terms are ANDed together. Supported terms:

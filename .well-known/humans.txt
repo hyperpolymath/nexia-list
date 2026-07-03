@@ -8,6 +8,6 @@ Site: https://github.com/hyperpolymath
 Location: United Kingdom
 
 /* SITE */
-Software: Nexia — Cross-platform personal knowledge management
+Software: Nexia-List — Cross-platform personal knowledge management
 Standards: MPL-2.0, RSR (Rhodium Standard Repository)
 Components: Rust core, ReScript TEA UI, Tauri 2.0 desktop/mobile, WASM/PWA web
