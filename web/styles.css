@@ -539,3 +539,78 @@ body {
   border-radius: 4px;
   cursor: pointer;
 }
+
+/* ── Link picker & backlinks ───────────────────────────────────── */
+
+.note-links .muted,
+.note-backlinks .muted {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.link-target {
+  background: transparent;
+  border: none;
+  color: var(--accent-hover);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.15rem 0;
+  text-align: left;
+}
+
+.link-target:hover {
+  text-decoration: underline;
+}
+
+.link-picker {
+  margin-top: 0.75rem;
+}
+
+.link-picker input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.link-candidates {
+  list-style: none;
+  margin-top: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.link-candidates li button {
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-primary);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-candidates li button:hover {
+  background: var(--bg-tertiary);
+}
+
+.note-backlinks {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.note-backlinks h4 {
+  margin-bottom: 0.5rem;
+}
+
+.note-backlinks ul {
+  list-style: none;
+}
