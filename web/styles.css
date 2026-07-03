@@ -425,3 +425,117 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Graph view ────────────────────────────────────────────────── */
+
+.graph-view {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  padding: 1rem;
+}
+
+.graph-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+
+.graph-edge {
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.graph-node {
+  cursor: pointer;
+}
+
+.graph-node circle {
+  fill: var(--accent-strong);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.graph-node.selected circle {
+  fill: var(--accent);
+  stroke: var(--accent-hover);
+  r: 13;
+}
+
+.graph-node text {
+  fill: var(--text-primary);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.graph-node:focus-visible {
+  outline: 3px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+/* ── Agents panel ──────────────────────────────────────────────── */
+
+.agents-panel {
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+}
+
+.agents-panel h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.agent-list {
+  list-style: none;
+  margin-bottom: 0.5rem;
+}
+
+.agent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.agent-name {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0.35rem 0.25rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.agent-item.active .agent-name {
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.agent-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.agent-form input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.agent-form .btn-primary {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent-strong);
+  border-radius: 4px;
+  cursor: pointer;
+}

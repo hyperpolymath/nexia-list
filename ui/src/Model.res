@@ -27,6 +27,12 @@ type model = {
   dirty: bool,
   /// Error message to display
   error: option<string>,
+  /// Persistent saved queries
+  agents: array<agent>,
+  /// The agent whose results are currently shown (if any)
+  activeAgent: option<agentId>,
+  /// Note IDs collected by the active agent
+  agentResults: array<noteId>,
 }
 
 /// Create an empty notebook
@@ -54,6 +60,9 @@ let initial = (): model => {
   filePath: None,
   dirty: false,
   error: None,
+  agents: [],
+  activeAgent: None,
+  agentResults: [],
 }
 
 /// Get a note by ID from the model

@@ -43,6 +43,12 @@ type markdownFile = {name: string, content: string}
 @send external exportOpmlRaw: t => string = "export_opml"
 @send external importVaultRaw: (t, array<markdownFile>) => notebook = "import_markdown_vault"
 
+@send external agentsRaw: t => array<agent> = "agents"
+@send external addAgentRaw: (t, string, string) => agent = "add_agent"
+@send external removeAgentRaw: (t, agentId) => bool = "remove_agent"
+@send external runAgentRaw: (t, agentId) => array<noteId> = "run_agent"
+@send external runQueryRaw: (t, string) => array<noteId> = "run_query"
+
 let current: ref<option<t>> = ref(None)
 
 exception StoreNotInitialized
@@ -129,4 +135,39 @@ let exportOpml = (): result<string, string> =>
 let importVault = (files: array<markdownFile>): result<notebook, string> =>
   try Ok(importVaultRaw(instance(), files)) catch {
   | e => Error(errorMessage(e, "Could not import vault"))
+  }
+
+let agents = (): array<agent> =>
+  switch current.contents {
+  | Some(nb) => agentsRaw(nb)
+  | None => []
+  }
+
+let addAgent = (name: string, query: string): result<agent, string> =>
+  try Ok(addAgentRaw(instance(), name, query)) catch {
+  | e => Error(errorMessage(e, "Could not create agent"))
+  }
+
+let removeAgent = (id: agentId): bool =>
+  switch current.contents {
+  | Some(nb) =>
+    try removeAgentRaw(nb, id) catch {
+    | _ => false
+    }
+  | None => false
+  }
+
+let runAgent = (id: agentId): array<noteId> =>
+  switch current.contents {
+  | Some(nb) =>
+    try runAgentRaw(nb, id) catch {
+    | _ => []
+    }
+  | None => []
+  }
+
+let runQuery = (query: string): array<noteId> =>
+  switch current.contents {
+  | Some(nb) => runQueryRaw(nb, query)
+  | None => []
   }

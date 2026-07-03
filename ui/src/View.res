@@ -14,12 +14,87 @@ let onActivateKey = (handler: unit => unit, e: ReactEvent.Keyboard.t) =>
   | _ => ()
   }
 
+module AgentsPanel = {
+  @react.component
+  let make = (~model: model, ~dispatch: msg => unit) => {
+    let (name, setName) = React.useState(() => "")
+    let (query, setQuery) = React.useState(() => "")
+
+    let submit = _ => {
+      let n = String.trim(name)
+      let q = String.trim(query)
+      if n != "" && q != "" {
+        dispatch(CreateAgent(n, q))
+        setName(_ => "")
+        setQuery(_ => "")
+      }
+    }
+
+    <section className="agents-panel" ariaLabel="Agents">
+      <h3> {React.string("Agents")} </h3>
+      <ul className="agent-list">
+        {model.agents
+        ->Array.map(agent => {
+          let isActive = model.activeAgent == Some(agent.id)
+          <li key={agent.id} className={isActive ? "agent-item active" : "agent-item"}>
+            <button
+              type_="button"
+              className="agent-name"
+              ariaPressed={isActive ? #"true" : #"false"}
+              title={agent.query}
+              onClick={_ =>
+                isActive ? dispatch(ClearAgent) : dispatch(RunAgent(agent.id))}>
+              {React.string(agent.name)}
+            </button>
+            <button
+              type_="button"
+              className="btn-remove"
+              ariaLabel={`Delete agent ${agent.name}`}
+              onClick={_ => dispatch(DeleteAgent(agent.id))}>
+              {React.string("×")}
+            </button>
+          </li>
+        })
+        ->React.array}
+      </ul>
+      <div className="agent-form">
+        <input
+          type_="text"
+          placeholder="Agent name"
+          ariaLabel="Agent name"
+          value={name}
+          onChange={e => setName(_ => ReactEvent.Form.target(e)["value"])}
+        />
+        <input
+          type_="text"
+          placeholder="Query, e.g. attr:status=todo"
+          ariaLabel="Agent query"
+          value={query}
+          onChange={e => setQuery(_ => ReactEvent.Form.target(e)["value"])}
+        />
+        <button type_="button" className="btn-primary" onClick={submit}>
+          {React.string("Add agent")}
+        </button>
+      </div>
+    </section>
+  }
+}
+
 module Sidebar = {
   @react.component
   let make = (~model: model, ~dispatch: msg => unit) => {
     let notes = allNotes(model)->Array.toSorted((a, b) =>
       String.localeCompare(a.title, b.title)
     )
+    // What the list shows: search results, else an active agent's collection,
+    // else every note.
+    let listedIds = if model.searchQuery != "" {
+      model.searchResults
+    } else if model.activeAgent->Option.isSome {
+      model.agentResults
+    } else {
+      notes->Array.map(n => n.id)
+    }
 
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -44,9 +119,7 @@ module Sidebar = {
           : React.null}
       </div>
       <ul className="note-list" ariaLabel="Notes">
-        {(
-          model.searchQuery != "" ? model.searchResults : notes->Array.map(n => n.id)
-        )
+        {listedIds
         ->Array.map(id => {
           switch getNote(model, id) {
           | Some(note) =>
@@ -76,6 +149,7 @@ module Sidebar = {
         })
         ->React.array}
       </ul>
+      <AgentsPanel model dispatch />
       <div className="sidebar-footer">
         <span className="note-count">
           {React.string(`${noteCount(model)->Int.toString} notes`)}
@@ -229,6 +303,77 @@ module CanvasView = {
   }
 }
 
+module GraphView = {
+  @react.component
+  let make = (~model: model, ~dispatch: msg => unit) => {
+    let notes = allNotes(model)
+    let width = 800.0
+    let height = 600.0
+    let positions = GraphLayout.circular(~notes, ~width, ~height)
+    let posById = GraphLayout.byId(positions)
+
+    <div className="graph-view">
+      {Array.length(positions) == 0
+        ? <div className="empty-state">
+            <p> {React.string("No notes yet — create some to see the graph.")} </p>
+          </div>
+        : <svg
+            className="graph-svg"
+            viewBox={`0 0 ${width->Float.toString} ${height->Float.toString}`}
+            role="img"
+            ariaLabel="Note graph">
+            // Edges first so nodes draw on top.
+            {notes
+            ->Array.flatMap(note =>
+              switch Js.Dict.get(posById, note.id) {
+              | None => []
+              | Some(from) =>
+                note.links->Array.filterMap(target =>
+                  switch Js.Dict.get(posById, target) {
+                  | Some(to_) =>
+                    Some(
+                      <line
+                        key={`${note.id}-${target}`}
+                        x1={from.x->Float.toString}
+                        y1={from.y->Float.toString}
+                        x2={to_.x->Float.toString}
+                        y2={to_.y->Float.toString}
+                        className="graph-edge"
+                      />,
+                    )
+                  | None => None
+                  }
+                )
+              }
+            )
+            ->React.array}
+            {positions
+            ->Array.map(p => {
+              let isSelected = switch model.selection {
+              | SingleNote(id) => id == p.id
+              | MultipleNotes(ids) => Array.includes(ids, p.id)
+              | NoSelection => false
+              }
+              <g
+                key={p.id}
+                className={isSelected ? "graph-node selected" : "graph-node"}
+                role="button"
+                tabIndex={0}
+                ariaLabel={p.title}
+                onClick={_ => dispatch(SelectNote(p.id))}
+                onKeyDown={e => onActivateKey(() => dispatch(SelectNote(p.id)), e)}>
+                <circle cx={p.x->Float.toString} cy={p.y->Float.toString} r="10" />
+                <text x={p.x->Float.toString} y={(p.y -. 16.0)->Float.toString} textAnchor="middle">
+                  {React.string(p.title)}
+                </text>
+              </g>
+            })
+            ->React.array}
+          </svg>}
+    </div>
+  }
+}
+
 module Toolbar = {
   @react.component
   let make = (~model: model, ~dispatch: msg => unit) => {
@@ -253,6 +398,12 @@ module Toolbar = {
           ariaPressed={(model.viewMode == CanvasView) ? #"true" : #"false"}
           className={model.viewMode == CanvasView ? "btn-active" : ""}>
           {React.string("Canvas")}
+        </button>
+        <button
+          onClick={_ => dispatch(SetViewMode(GraphView))}
+          ariaPressed={(model.viewMode == GraphView) ? #"true" : #"false"}
+          className={model.viewMode == GraphView ? "btn-active" : ""}>
+          {React.string("Graph")}
         </button>
       </div>
       <div className="toolbar-right">
@@ -304,7 +455,7 @@ let make = (~model: model, ~dispatch: msg => unit) => {
         {switch model.viewMode {
         | ListView => <ListView model dispatch />
         | CanvasView => <CanvasView model dispatch />
-        | GraphView => <div> {React.string("Graph view coming soon")} </div>
+        | GraphView => <GraphView model dispatch />
         }}
       </main>
     </div>

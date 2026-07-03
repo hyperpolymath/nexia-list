@@ -52,6 +52,14 @@ type direction =
   | Left
   | Right
 
+/// A persistent saved query (agent).
+type agentId = string
+type agent = {
+  id: agentId,
+  name: string,
+  query: string,
+}
+
 /// Canvas viewport state
 type viewport = {
   offsetX: float,
