@@ -33,6 +33,9 @@ type msg =
   | PanCanvas(float, float)
   | ZoomCanvas(float)
   | ResetViewport
+  // Keyboard canvas navigation
+  | NavigateCanvas(direction)
+  | NudgeSelectedNote(direction)
   // Search
   | SetSearchQuery(string)
   | ClearSearch

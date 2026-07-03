@@ -45,6 +45,13 @@ type selection =
   | SingleNote(noteId)
   | MultipleNotes(array<noteId>)
 
+/// A cardinal direction for keyboard navigation on the canvas.
+type direction =
+  | Up
+  | Down
+  | Left
+  | Right
+
 /// Canvas viewport state
 type viewport = {
   offsetX: float,

@@ -5,6 +5,15 @@ open Types
 open Model
 open Msg
 
+// Enter / Space activate an element exposed as role="button".
+let onActivateKey = (handler: unit => unit, e: ReactEvent.Keyboard.t) =>
+  switch ReactEvent.Keyboard.key(e) {
+  | "Enter" | " " =>
+    ReactEvent.Keyboard.preventDefault(e)
+    handler()
+  | _ => ()
+  }
+
 module Sidebar = {
   @react.component
   let make = (~model: model, ~dispatch: msg => unit) => {
@@ -23,16 +32,18 @@ module Sidebar = {
         <input
           type_="text"
           placeholder="Search notes..."
+          ariaLabel="Search notes"
           value={model.searchQuery}
           onChange={e => dispatch(SetSearchQuery(ReactEvent.Form.target(e)["value"]))}
         />
         {model.searchQuery != ""
-          ? <button onClick={_ => dispatch(ClearSearch)} className="btn-clear">
+          ? <button
+              ariaLabel="Clear search" onClick={_ => dispatch(ClearSearch)} className="btn-clear">
               {React.string("×")}
             </button>
           : React.null}
       </div>
-      <ul className="note-list">
+      <ul className="note-list" ariaLabel="Notes">
         {(
           model.searchQuery != "" ? model.searchResults : notes->Array.map(n => n.id)
         )
@@ -44,18 +55,21 @@ module Sidebar = {
             | MultipleNotes(ids) => Array.includes(ids, id)
             | NoSelection => false
             }
-            <li
-              key={id}
-              className={isSelected ? "note-item selected" : "note-item"}
-              onClick={_ => dispatch(SelectNote(id))}>
-              <span className="note-title">
-                {React.string(note.title != "" ? note.title : "Untitled")}
-              </span>
-              <span className="note-meta">
-                {React.string(
-                  `${Array.length(note.links)->Int.toString} links`,
-                )}
-              </span>
+            let label = note.title != "" ? note.title : "Untitled"
+            <li key={id}>
+              <button
+                type_="button"
+                ariaPressed={(isSelected) ? #"true" : #"false"}
+                ariaLabel={label}
+                className={isSelected ? "note-item selected" : "note-item"}
+                onClick={_ => dispatch(SelectNote(id))}>
+                <span className="note-title"> {React.string(label)} </span>
+                <span className="note-meta">
+                  {React.string(
+                    `${Array.length(note.links)->Int.toString} links`,
+                  )}
+                </span>
+              </button>
             </li>
           | None => React.null
           }
@@ -168,8 +182,13 @@ module CanvasView = {
           | MultipleNotes(ids) => Array.includes(ids, note.id)
           | NoSelection => false
           }
+          let label = note.title != "" ? note.title : "Untitled"
           <div
             key={note.id}
+            role="button"
+            tabIndex={0}
+            ariaPressed={(isSelected) ? #"true" : #"false"}
+            ariaLabel={label}
             className={isSelected ? "canvas-note selected" : "canvas-note"}
             style={ReactDOM.Style.make(
               ~left=`${pos.x->Float.toString}px`,
@@ -177,13 +196,12 @@ module CanvasView = {
               (),
             )}
             onClick={_ => dispatch(SelectNote(note.id))}
+            onKeyDown={e => onActivateKey(() => dispatch(StartEditingNote(note.id)), e)}
             onDoubleClick={e => {
               ReactEvent.Mouse.stopPropagation(e)
               dispatch(StartEditingNote(note.id))
             }}>
-            <div className="canvas-note-title">
-              {React.string(note.title != "" ? note.title : "Untitled")}
-            </div>
+            <div className="canvas-note-title"> {React.string(label)} </div>
             {note.content != ""
               ? <div className="canvas-note-preview">
                   {React.string(
@@ -197,9 +215,15 @@ module CanvasView = {
         ->React.array}
       </div>
       <div className="canvas-controls">
-        <button onClick={_ => dispatch(ZoomCanvas(1.2))}> {React.string("+")} </button>
-        <button onClick={_ => dispatch(ZoomCanvas(0.8))}> {React.string("-")} </button>
-        <button onClick={_ => dispatch(ResetViewport)}> {React.string("Reset")} </button>
+        <button ariaLabel="Zoom in" onClick={_ => dispatch(ZoomCanvas(1.2))}>
+          {React.string("+")}
+        </button>
+        <button ariaLabel="Zoom out" onClick={_ => dispatch(ZoomCanvas(0.8))}>
+          {React.string("-")}
+        </button>
+        <button ariaLabel="Reset view" onClick={_ => dispatch(ResetViewport)}>
+          {React.string("Reset")}
+        </button>
       </div>
     </div>
   }
@@ -208,10 +232,11 @@ module CanvasView = {
 module Toolbar = {
   @react.component
   let make = (~model: model, ~dispatch: msg => unit) => {
-    <div className="toolbar">
+    <div className="toolbar" role="toolbar" ariaLabel="Main toolbar">
       <div className="toolbar-left">
         <button
           onClick={_ => dispatch(ToggleSidebar)}
+          ariaPressed={(model.sidebarOpen) ? #"true" : #"false"}
           className={model.sidebarOpen ? "btn-active" : ""}>
           {React.string("Sidebar")}
         </button>
@@ -219,11 +244,13 @@ module Toolbar = {
       <div className="toolbar-center">
         <button
           onClick={_ => dispatch(SetViewMode(ListView))}
+          ariaPressed={(model.viewMode == ListView) ? #"true" : #"false"}
           className={model.viewMode == ListView ? "btn-active" : ""}>
           {React.string("List")}
         </button>
         <button
           onClick={_ => dispatch(SetViewMode(CanvasView))}
+          ariaPressed={(model.viewMode == CanvasView) ? #"true" : #"false"}
           className={model.viewMode == CanvasView ? "btn-active" : ""}>
           {React.string("Canvas")}
         </button>
@@ -254,9 +281,11 @@ module ErrorBanner = {
   let make = (~error: option<string>, ~dispatch: msg => unit) => {
     switch error {
     | Some(message) =>
-      <div className="error-banner">
+      <div className="error-banner" role="alert">
         <span> {React.string(message)} </span>
-        <button onClick={_ => dispatch(ClearError)}> {React.string("×")} </button>
+        <button ariaLabel="Dismiss error" onClick={_ => dispatch(ClearError)}>
+          {React.string("×")}
+        </button>
       </div>
     | None => React.null
     }
