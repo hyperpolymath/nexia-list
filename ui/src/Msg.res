@@ -43,6 +43,10 @@ type msg =
   | LoadNotebook(string)
   | NotebookLoaded(notebook)
   | NotebookSaved
+  // Import / export
+  | ExportMarkdown
+  | ExportOpml
+  | ImportVault
   // Errors
   | SetError(string)
   | ClearError

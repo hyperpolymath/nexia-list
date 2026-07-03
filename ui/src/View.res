@@ -235,6 +235,15 @@ module Toolbar = {
         <button onClick={_ => dispatch(NewNotebook)}> {React.string("New")} </button>
         <button onClick={_ => dispatch(LoadNotebook(""))}> {React.string("Load")} </button>
         <button onClick={_ => dispatch(SaveNotebook)}> {React.string("Save")} </button>
+        <button onClick={_ => dispatch(ImportVault)} title="Import a Markdown vault">
+          {React.string("Import")}
+        </button>
+        <button onClick={_ => dispatch(ExportMarkdown)} title="Export notes as Markdown">
+          {React.string("Export MD")}
+        </button>
+        <button onClick={_ => dispatch(ExportOpml)} title="Export outline as OPML">
+          {React.string("Export OPML")}
+        </button>
       </div>
     </div>
   }

@@ -263,6 +263,22 @@ let rec update = (model: model, msg: msg): model => {
 
   | NotebookSaved => {...model, dirty: false}
 
+  // Import / export (effects resolve after update via Dispatcher)
+  | ExportMarkdown => {
+      Exchange.exportMarkdown()
+      model
+    }
+
+  | ExportOpml => {
+      Exchange.exportOpml(model.notebook.name)
+      model
+    }
+
+  | ImportVault => {
+      Exchange.importVault()
+      model
+    }
+
   // Errors
   | SetError(error) => {...model, error: Some(error)}
 

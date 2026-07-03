@@ -10,13 +10,17 @@
 //! - `note`: Individual atomic unit of information.
 //! - `notebook`: A logical collection/subgraph of notes.
 //! - `storage`: File-based JSON persistence.
+//! - `wikilink`: `[[Title]]` reference parsing.
+//! - `exchange`: Markdown-vault / OPML import & export.
 //! - `wasm` (feature "wasm"): browser bindings; the web UI runs this crate
 //!   compiled to WebAssembly as its single source of truth.
 
 #![forbid(unsafe_code)]
+pub mod exchange;
 pub mod note;
 pub mod notebook;
 pub mod storage;
+pub mod wikilink;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;

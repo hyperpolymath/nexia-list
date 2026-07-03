@@ -10,7 +10,7 @@
 
 use crate::note::{Note, Point2D};
 use crate::notebook::Notebook;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
@@ -84,6 +84,13 @@ struct DeltaView {
     backlinks: HashMap<String, Vec<String>>,
 }
 
+/// A Markdown file crossing the boundary in either direction.
+#[derive(Serialize, Deserialize)]
+struct MarkdownFileView {
+    name: String,
+    content: String,
+}
+
 /// Full notebook snapshot, used on init/new/load.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -155,6 +162,39 @@ impl WasmNotebook {
 
     pub fn snapshot(&self) -> Result<JsValue, JsValue> {
         to_js(&NotebookView::from(&self.inner))
+    }
+
+    /// Export every note as a Markdown file: `[{ name, content }]`.
+    pub fn export_markdown(&self) -> Result<JsValue, JsValue> {
+        let files: Vec<MarkdownFileView> = crate::exchange::to_markdown(&self.inner)
+            .into_iter()
+            .map(|f| MarkdownFileView {
+                name: f.name,
+                content: f.content,
+            })
+            .collect();
+        to_js(&files)
+    }
+
+    /// Export the notebook as an OPML 2.0 outline.
+    pub fn export_opml(&self) -> String {
+        crate::exchange::to_opml(&self.inner)
+    }
+
+    /// Replace the notebook by importing a Markdown vault (`[{ name, content }]`)
+    /// and return the new snapshot.
+    pub fn import_markdown_vault(&mut self, files: JsValue) -> Result<JsValue, JsValue> {
+        let views: Vec<MarkdownFileView> = serde_wasm_bindgen::from_value(files)
+            .map_err(|e| err(format!("Invalid vault payload: {e}")))?;
+        let files: Vec<crate::exchange::MarkdownFile> = views
+            .into_iter()
+            .map(|v| crate::exchange::MarkdownFile {
+                name: v.name,
+                content: v.content,
+            })
+            .collect();
+        self.inner = crate::exchange::from_markdown_vault(&files);
+        self.snapshot()
     }
 
     pub fn name(&self) -> String {
