@@ -30,8 +30,18 @@
 ; ── End Definitions ──────────────────────────────────────────────
 
 (intent-contractile
-  (version "1.0.0")
+  (version "1.1.0")
   (repo "nexia-list")
+
+  ; === North Star (the animating purpose — read this first) ===
+  ; Framed as a liberation, never a constraint: every feature exists to
+  ; enlarge this, not to be fenced by it.
+  (north-star
+    (quote "A note is a letter we send to our future self.")
+    (attribution "Mark Bernstein, The Tinderbox Way")
+    (meaning
+      "Everything Nexia-List builds serves this correspondence and aims to enlarge it: to help the letter reach a richer future self — resurfaced at the right moment, connected to your other letters, searched and computed over across years. Added power (see the LambdaDelta substrate, docs/adr/0003) is here to liberate and augment the correspondence, not to constrain what the product is or can become. When weighing a feature, ask the generative question: does this help the letter reach a richer future self?")
+  )
 
   ; === Purpose (what this repo IS) ===
   (purpose
