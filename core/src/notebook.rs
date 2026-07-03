@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Notebook - collection of notes with relationship tracking
 
+use crate::agent::{note_matches, Agent};
 use crate::note::{Note, NoteId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
+use uuid::Uuid;
 
 /// Errors that can occur during notebook operations
 #[derive(Debug, Error)]
@@ -26,6 +28,10 @@ pub struct Notebook {
     #[serde(default)]
     backlinks: HashMap<NoteId, HashSet<NoteId>>,
 
+    /// Persistent saved queries (agents).
+    #[serde(default)]
+    agents: Vec<Agent>,
+
     /// Notebook metadata
     pub name: String,
 
@@ -43,6 +49,7 @@ impl Notebook {
         Self {
             notes: HashMap::new(),
             backlinks: HashMap::new(),
+            agents: Vec::new(),
             name: name.into(),
             created_at: now,
             modified_at: now,
@@ -221,6 +228,50 @@ impl Notebook {
         }
     }
 
+    // ── Agents (persistent saved queries) ────────────────────────────
+
+    /// All agents, in insertion order.
+    pub fn agents(&self) -> &[Agent] {
+        &self.agents
+    }
+
+    /// Create and store an agent; returns its id.
+    pub fn add_agent(&mut self, name: impl Into<String>, query: impl Into<String>) -> NoteId {
+        let agent = Agent::new(name, query);
+        let id = agent.id;
+        self.agents.push(agent);
+        self.touch();
+        id
+    }
+
+    /// Remove an agent by id; returns whether one was removed.
+    pub fn remove_agent(&mut self, id: &Uuid) -> bool {
+        let before = self.agents.len();
+        self.agents.retain(|a| &a.id != id);
+        let removed = self.agents.len() != before;
+        if removed {
+            self.touch();
+        }
+        removed
+    }
+
+    /// The note ids matching a raw query string.
+    pub fn run_query(&self, query: &str) -> Vec<NoteId> {
+        self.notes
+            .values()
+            .filter(|note| note_matches(note, query))
+            .map(|note| note.id)
+            .collect()
+    }
+
+    /// The note ids collected by a stored agent (empty if the id is unknown).
+    pub fn run_agent(&self, id: &Uuid) -> Vec<NoteId> {
+        match self.agents.iter().find(|a| &a.id == id) {
+            Some(agent) => self.run_query(&agent.query),
+            None => Vec::new(),
+        }
+    }
+
     /// Update the modified timestamp
     fn touch(&mut self) {
         self.modified_at = chrono::Utc::now();
@@ -267,6 +318,33 @@ mod tests {
 
         let backlinks = notebook.get_backlinks(&id2);
         assert!(backlinks.contains(&id1));
+    }
+
+    #[test]
+    fn test_agents_collect_run_and_persist() {
+        let mut notebook = Notebook::new("Test");
+        let todo = notebook.create_note("Buy milk");
+        if let Some(n) = notebook.get_note_mut(&todo) {
+            n.set_attribute("status", serde_json::json!("todo"));
+        }
+        let done = notebook.create_note("Ship release");
+        if let Some(n) = notebook.get_note_mut(&done) {
+            n.set_attribute("status", serde_json::json!("done"));
+        }
+
+        let agent = notebook.add_agent("Open tasks", "attr:status=todo");
+        assert_eq!(notebook.agents().len(), 1);
+        assert_eq!(notebook.run_agent(&agent), vec![todo]);
+
+        // Survives a serde round-trip.
+        let json = serde_json::to_string(&notebook).unwrap();
+        let restored: Notebook = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.agents().len(), 1);
+        assert_eq!(restored.run_agent(&agent), vec![todo]);
+
+        assert!(notebook.remove_agent(&agent));
+        assert!(notebook.agents().is_empty());
+        assert!(notebook.run_agent(&agent).is_empty());
     }
 
     #[test]

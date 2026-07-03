@@ -50,6 +50,12 @@ type msg =
   | ExportMarkdown
   | ExportOpml
   | ImportVault
+  // Agents (persistent saved queries)
+  | RefreshAgents
+  | CreateAgent(string, string)
+  | DeleteAgent(agentId)
+  | RunAgent(agentId)
+  | ClearAgent
   // Errors
   | SetError(string)
   | ClearError

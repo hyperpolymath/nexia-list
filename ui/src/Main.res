@@ -16,6 +16,8 @@ module App = {
 
     React.useEffect0(() => {
       Dispatcher.dispatchRef := dispatch
+      // Load any agents restored from the autosaved notebook.
+      dispatch(Msg.RefreshAgents)
       None
     })
 

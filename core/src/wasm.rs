@@ -91,6 +91,24 @@ struct MarkdownFileView {
     content: String,
 }
 
+/// UI-facing shape of an agent.
+#[derive(Serialize)]
+struct AgentView {
+    id: String,
+    name: String,
+    query: String,
+}
+
+impl From<&crate::agent::Agent> for AgentView {
+    fn from(agent: &crate::agent::Agent) -> Self {
+        Self {
+            id: agent.id.to_string(),
+            name: agent.name.clone(),
+            query: agent.query.clone(),
+        }
+    }
+}
+
 /// Full notebook snapshot, used on init/new/load.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -336,6 +354,50 @@ impl WasmNotebook {
             .search(query)
             .iter()
             .map(|note| note.id.to_string())
+            .collect()
+    }
+
+    // ── Agents ───────────────────────────────────────────────────────
+
+    /// All agents as `[{ id, name, query }]`.
+    pub fn agents(&self) -> Result<JsValue, JsValue> {
+        let views: Vec<AgentView> = self.inner.agents().iter().map(AgentView::from).collect();
+        to_js(&views)
+    }
+
+    /// Create an agent; returns the new agent view.
+    pub fn add_agent(&mut self, name: &str, query: &str) -> Result<JsValue, JsValue> {
+        let id = self.inner.add_agent(name, query);
+        let view = self
+            .inner
+            .agents()
+            .iter()
+            .find(|a| a.id == id)
+            .map(AgentView::from)
+            .ok_or_else(|| err("agent vanished after insert"))?;
+        to_js(&view)
+    }
+
+    pub fn remove_agent(&mut self, id: &str) -> Result<bool, JsValue> {
+        Ok(self.inner.remove_agent(&parse_id(id)?))
+    }
+
+    /// The note ids collected by a stored agent.
+    pub fn run_agent(&self, id: &str) -> Result<Vec<String>, JsValue> {
+        Ok(self
+            .inner
+            .run_agent(&parse_id(id)?)
+            .iter()
+            .map(Uuid::to_string)
+            .collect())
+    }
+
+    /// The note ids matching an ad-hoc query string (agent preview).
+    pub fn run_query(&self, query: &str) -> Vec<String> {
+        self.inner
+            .run_query(query)
+            .iter()
+            .map(Uuid::to_string)
             .collect()
     }
 }

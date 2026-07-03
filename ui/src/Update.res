@@ -41,8 +41,16 @@ let patchNote = (model: model, result: result<note, string>): model =>
   | Error(message) => {...model, error: Some(message)}
   }
 
-/// The main update function
+/// The main update function. Every transition passes through `update`, which
+/// keeps an active agent's collection live by re-running it afterwards.
 let rec update = (model: model, msg: msg): model => {
+  let next = step(model, msg)
+  switch next.activeAgent {
+  | Some(id) => {...next, agentResults: WasmStore.runAgent(id)}
+  | None => next
+  }
+}
+and step = (model: model, msg: msg): model => {
   switch msg {
   // Note CRUD
   | CreateNote =>
@@ -245,6 +253,7 @@ let rec update = (model: model, msg: msg): model => {
       notebook: WasmStore.reset("Untitled Notebook"),
       viewMode: model.viewMode,
       sidebarOpen: model.sidebarOpen,
+      agents: WasmStore.agents(),
     }
 
   | SaveNotebook =>
@@ -292,6 +301,9 @@ let rec update = (model: model, msg: msg): model => {
       searchQuery: "",
       searchResults: [],
       error: None,
+      agents: WasmStore.agents(),
+      activeAgent: None,
+      agentResults: [],
     }
 
   | NotebookSaved => {...model, dirty: false}
@@ -311,6 +323,30 @@ let rec update = (model: model, msg: msg): model => {
       Exchange.importVault()
       model
     }
+
+  // Agents
+  | RefreshAgents => {...model, agents: WasmStore.agents()}
+
+  | CreateAgent(name, query) =>
+    switch WasmStore.addAgent(name, query) {
+    | Ok(_) => {...model, agents: WasmStore.agents(), dirty: true}
+    | Error(message) => {...model, error: Some(message)}
+    }
+
+  | DeleteAgent(id) => {
+      WasmStore.removeAgent(id)->ignore
+      {
+        ...model,
+        agents: WasmStore.agents(),
+        dirty: true,
+        activeAgent: model.activeAgent == Some(id) ? None : model.activeAgent,
+        agentResults: model.activeAgent == Some(id) ? [] : model.agentResults,
+      }
+    }
+
+  | RunAgent(id) => {...model, activeAgent: Some(id), agentResults: WasmStore.runAgent(id)}
+
+  | ClearAgent => {...model, activeAgent: None, agentResults: []}
 
   // Errors
   | SetError(error) => {...model, error: Some(error)}
