@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 //
-//! Nexia desktop application entry point — Gossamer webview shell.
+//! Nexia-List desktop application entry point — Gossamer webview shell.
 //!
 //! All 11 note-management commands are registered via `gossamer_rs::App::command()`.
 //! Each handler receives a `serde_json::Value` payload and returns
@@ -99,7 +99,7 @@ fn main() -> Result<(), gossamer_rs::Error> {
     let state = std::sync::Arc::new(AppState::default());
 
     // Create the Gossamer webview window matching gossamer.conf.json dimensions.
-    let mut app = App::new("Nexia", 1200, 800)?;
+    let mut app = App::new("Nexia-List", 1200, 800)?;
 
     // -- create_note ----------------------------------------------------------
     {

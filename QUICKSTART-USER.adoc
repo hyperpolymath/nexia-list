@@ -6,7 +6,7 @@
 
 == What is nexia-list?
 
-Nexia is a local-first personal knowledge management tool: notes on a spatial
+Nexia-List is a local-first personal knowledge management tool: notes on a spatial
 canvas with bidirectional links and (planned) intelligent agents. It runs in
 your browser — your data stays on your device as human-readable JSON. See
 link:README.adoc[README.adoc] for the full pitch.
@@ -45,7 +45,7 @@ just run
 
 Then open http://localhost:5173 in your browser.
 
-NOTE: Nexia is pre-release (v0.1, in active development). You can create,
+NOTE: Nexia-List is pre-release (v0.1, in active development). You can create,
 edit, delete, and search notes; the spatial canvas supports pan/zoom and
 double-click note creation. Drag-and-drop and a desktop app are not available
 yet.
@@ -70,7 +70,7 @@ and suggests fixes if not.
 
 == Uninstall
 
-Nexia makes no system-wide changes. To remove it, delete the cloned
+Nexia-List makes no system-wide changes. To remove it, delete the cloned
 directory. Your notebooks are plain JSON files — export/download them first
 if you want to keep them (browser data lives in IndexedDB for the site until
 you clear it).

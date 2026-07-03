@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-/// Main entry point for Nexia: loads the WASM core, restores the autosaved
+/// Main entry point for Nexia-List: loads the WASM core, restores the autosaved
 /// notebook from IndexedDB, then mounts the app.
 
 module App = {
@@ -112,12 +112,12 @@ let start = async () => {
     }
   } catch {
   | e => {
-      Js.Console.error2("Nexia failed to start", e->Exn.anyToExnInternal)
+      Js.Console.error2("Nexia-List failed to start", e->Exn.anyToExnInternal)
       switch ReactDOM.querySelector("#root") {
       | Some(root) =>
         ReactDOM.Client.createRoot(root)->ReactDOM.Client.Root.render(
           <div role="alert" className="error-banner">
-            {React.string("Nexia failed to start. Check the browser console for details.")}
+            {React.string("Nexia-List failed to start. Check the browser console for details.")}
           </div>,
         )
       | None => ()

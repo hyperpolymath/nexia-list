@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
-= Nexia
+= Nexia-List
 :toc: macro
 :toc-title: Contents
 :toclevels: 3
@@ -28,10 +28,24 @@ Nexia-List is an open-source, local-first knowledge management tool inspired by 
 
 == Philosophy
 
+=== North Star
+
+[quote, Mark Bernstein, The Tinderbox Way]
+A note is a letter we send to our future self.
+
+This is the animating purpose everything in Nexia-List serves — and, as the tool
+grows more powerful, aims to *enlarge*. Every capability exists to help that
+letter reach a richer future self: to resurface it at the right moment, connect
+it to your other letters, and let a decade of them be searched, computed over,
+and rediscovered. Power here is something to liberate the correspondence, never
+to constrain it.
+
+=== Local-first
+
 [quote]
 Your knowledge is yours. Not in a cloud you don't control. Not locked in a proprietary format. Not dependent on a company's survival.
 
-Nexia follows the **local-first** philosophy:
+Nexia-List follows the **local-first** philosophy:
 
 . Data stored in human-readable formats (JSON)
 . Works offline by default
@@ -40,7 +54,7 @@ Nexia follows the **local-first** philosophy:
 
 == Architecture
 
-Nexia is **web-first**. The primary target is the browser: the Rust core is
+Nexia-List is **web-first**. The primary target is the browser: the Rust core is
 compiled to WebAssembly so the real engine runs client-side, with no server
 required. A desktop shell is optional and external.
 
@@ -129,6 +143,15 @@ These appear in older docs as if they existed — they do not, yet:
 * Mobile targets
 * A dedicated TEA library and URL router (the current TEA loop is hand-rolled;
   `rescript-tea` and `cadre-tea-router` were removed as unused/unresolvable)
+
+=== LambdaDelta: the programmable substrate (planned)
+
+The larger direction — treating the notebook as live, homoiconic data that a
+real Lisp (LambdaDelta, λδ) can read, query, transform, and extend — is
+recorded in link:docs/adr/0003-lambdadelta-lisp-substrate.md[ADR-0003]. The
+guiding constraint is that this power is opt-in and *invisible by default*:
+Nexia-List stays a Tinderbox-like tool you can use for life without ever seeing
+a parenthesis, while power users gain the full expressive reach of Lisp.
 
 == Features
 

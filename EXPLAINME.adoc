@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
-= Nexia — Show Me The Receipts
+= Nexia-List — Show Me The Receipts
 :toc:
 :icons: font
 
@@ -7,7 +7,7 @@ The README makes claims. This file backs them up.
 
 [quote, README]
 ____
-Nexia is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox].
+Nexia-List is an open-source, local-first knowledge management tool inspired by https://www.eastgate.com/Tinderbox/[Tinderbox].
 ____
 
 == Technology Choices

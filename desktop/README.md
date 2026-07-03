@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-# Nexia Desktop Shell (optional, external dependency)
+# Nexia-List Desktop Shell (optional, external dependency)
 
-This crate is the Gossamer webview shell for Nexia. **It does not build from
+This crate is the Gossamer webview shell for Nexia-List. **It does not build from
 this repository alone** and that is intentional:
 
 - `Cargo.toml` depends on `gossamer-rs = { path = "../../gossamer/bindings/rust" }`,
