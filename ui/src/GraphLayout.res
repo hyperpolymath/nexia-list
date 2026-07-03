@@ -37,8 +37,8 @@ let circular = (~notes: array<note>, ~width: float, ~height: float): array<nodeP
 }
 
 /// Index positions by note id for edge lookup.
-let byId = (positions: array<nodePos>): Js.Dict.t<nodePos> => {
-  let dict = Js.Dict.empty()
-  positions->Array.forEach(p => Js.Dict.set(dict, p.id, p))
+let byId = (positions: array<nodePos>): Dict.t<nodePos> => {
+  let dict = Dict.make()
+  positions->Array.forEach(p => Dict.set(dict, p.id, p))
   dict
 }
