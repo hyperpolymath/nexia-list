@@ -17,9 +17,9 @@ function downloadBlob(filename, text, type) {
 
 // files: [{ name, content }]. Returns "directory" | "bundle".
 export async function exportMarkdownVault(files) {
-  if (typeof window.showDirectoryPicker === "function") {
+  if (typeof globalThis.showDirectoryPicker === "function") {
     try {
-      const dir = await window.showDirectoryPicker({ mode: "readwrite" });
+      const dir = await globalThis.showDirectoryPicker({ mode: "readwrite" });
       for (const file of files) {
         const handle = await dir.getFileHandle(file.name, { create: true });
         const writable = await handle.createWritable();
