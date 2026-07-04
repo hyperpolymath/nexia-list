@@ -1,0 +1,9 @@
+[
+  {
+    "severity": "info",
+    "rule_module": "cicd_rules",
+    "type": "banned_language_file",
+    "file_pattern": "ui/**/*.res",
+    "note": "ReScript is this repo's existing UI implementation, predating the estate-wide ReScript -> AffineScript migration. Grandfathered here via a single file_pattern entry (same mechanism as stapeln's .hypatia-baseline.json) until that migration lands."
+  }
+]
