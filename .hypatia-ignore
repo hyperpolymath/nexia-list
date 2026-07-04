@@ -7,8 +7,11 @@
 #     <rule_module>/*:<path-fragment>          (any type in module)
 #     <path-fragment>                           (any rule, any module)
 #
-# Lines starting with `#` are comments. A path-fragment is a substring match
-# against the repo-relative file path.
+# Lines starting with `#` are comments. NOTE: despite the general Hypatia
+# suppression docs describing path-fragment as a substring match, THIS
+# specific governance check's is_exempt() does an exact whole-line match
+# (grep -qxF "${rule}:${f}") — each file needs its own exact-path line,
+# a directory prefix does not match.
 #
 # NOTE: deliberately NOT using .hypatia-baseline.json for this — its mere
 # presence triggers the estate's "Validate Hypatia Baseline" governance job,
@@ -24,4 +27,18 @@
 # UI (ui/src/*.res, ui/tests/*.res, 14 files) predates that policy and
 # hasn't been migrated yet. Grandfathered here, same as stapeln's
 # equivalent carve-out, until the migration lands.
-cicd_rules/banned_language_file:ui/
+cicd_rules/banned_language_file:ui/src/Dispatcher.res
+cicd_rules/banned_language_file:ui/src/GraphLayout.res
+cicd_rules/banned_language_file:ui/src/Main.res
+cicd_rules/banned_language_file:ui/src/Model.res
+cicd_rules/banned_language_file:ui/src/Msg.res
+cicd_rules/banned_language_file:ui/src/Navigation.res
+cicd_rules/banned_language_file:ui/src/Types.res
+cicd_rules/banned_language_file:ui/src/Update.res
+cicd_rules/banned_language_file:ui/src/View.res
+cicd_rules/banned_language_file:ui/src/bindings/DomBindings.res
+cicd_rules/banned_language_file:ui/src/store/Exchange.res
+cicd_rules/banned_language_file:ui/src/store/Persist.res
+cicd_rules/banned_language_file:ui/src/store/WasmStore.res
+cicd_rules/banned_language_file:ui/tests/GraphLayoutTests.res
+cicd_rules/banned_language_file:ui/tests/NavigationTests.res
