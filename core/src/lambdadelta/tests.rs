@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Kernel tests: reader round-trips, evaluator determinism, sandbox limits,
 //! and a couple of property tests. All headless — no notebook, no host.
+//!
+//! Style note: assertions compare whole `Result`s (`assert_eq!(run(x), Ok(y))`)
+//! rather than unwrapping. This asserts the *error variant* too, and keeps the
+//! test module free of `unwrap()`/`panic!` — the production kernel is held
+//! strictly panic-free, so nothing here masks a panic in a helper either.
+
+use std::rc::Rc;
 
 use super::{read_all, read_one, Budget, Interp, LdError, Value};
 
-/// Evaluate `src` in a fresh interpreter under a generous budget, expecting Ok.
-fn eval(src: &str) -> Value {
-    Interp::new()
-        .eval_str(src, Budget::new())
-        .unwrap_or_else(|e| panic!("eval of {src:?} failed: {e}"))
-}
+type Res = Result<Value, LdError>;
 
-/// Evaluate `src`, returning the raw result (for error-path assertions).
-fn try_eval(src: &str) -> Result<Value, LdError> {
+/// Evaluate `src` in a fresh interpreter under a generous budget.
+fn run(src: &str) -> Res {
     Interp::new().eval_str(src, Budget::new())
 }
 
@@ -20,77 +22,78 @@ fn try_eval(src: &str) -> Result<Value, LdError> {
 
 #[test]
 fn reads_atoms() {
-    assert_eq!(read_one("nil").unwrap(), Value::Nil);
-    assert_eq!(read_one("true").unwrap(), Value::Bool(true));
-    assert_eq!(read_one("false").unwrap(), Value::Bool(false));
-    assert_eq!(read_one("42").unwrap(), Value::Int(42));
-    assert_eq!(read_one("-3").unwrap(), Value::Int(-3));
-    assert_eq!(read_one("1.5").unwrap(), Value::Float(1.5));
-    assert_eq!(read_one("1e3").unwrap(), Value::Float(1000.0));
-    assert_eq!(read_one(":status").unwrap(), Value::kw("status"));
-    assert_eq!(read_one("title").unwrap(), Value::sym("title"));
-    assert_eq!(read_one("\"hi\\n\"").unwrap(), Value::str("hi\n"));
+    assert_eq!(read_one("nil"), Ok(Value::Nil));
+    assert_eq!(read_one("true"), Ok(Value::Bool(true)));
+    assert_eq!(read_one("false"), Ok(Value::Bool(false)));
+    assert_eq!(read_one("42"), Ok(Value::Int(42)));
+    assert_eq!(read_one("-3"), Ok(Value::Int(-3)));
+    assert_eq!(read_one("1.5"), Ok(Value::Float(1.5)));
+    assert_eq!(read_one("1e3"), Ok(Value::Float(1000.0)));
+    assert_eq!(read_one(":status"), Ok(Value::kw("status")));
+    assert_eq!(read_one("title"), Ok(Value::sym("title")));
+    assert_eq!(read_one("\"hi\\n\""), Ok(Value::str("hi\n")));
 }
 
 #[test]
 fn nan_and_inf_are_symbols_not_numbers() {
     // The float parser must not swallow these identifiers.
-    assert_eq!(read_one("nan").unwrap(), Value::sym("nan"));
-    assert_eq!(read_one("inf").unwrap(), Value::sym("inf"));
-    assert_eq!(read_one("->").unwrap(), Value::sym("->"));
-    assert_eq!(read_one("-").unwrap(), Value::sym("-"));
+    assert_eq!(read_one("nan"), Ok(Value::sym("nan")));
+    assert_eq!(read_one("inf"), Ok(Value::sym("inf")));
+    assert_eq!(read_one("->"), Ok(Value::sym("->")));
+    assert_eq!(read_one("-"), Ok(Value::sym("-")));
 }
 
 #[test]
 fn reads_collections() {
     assert_eq!(
-        read_one("(+ 1 2)").unwrap(),
-        Value::list(vec![Value::sym("+"), Value::Int(1), Value::Int(2)])
+        read_one("(+ 1 2)"),
+        Ok(Value::list(vec![
+            Value::sym("+"),
+            Value::Int(1),
+            Value::Int(2)
+        ]))
     );
     assert_eq!(
-        read_one("[1 2 3]").unwrap(),
-        Value::vector(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+        read_one("[1 2 3]"),
+        Ok(Value::vector(vec![
+            Value::Int(1),
+            Value::Int(2),
+            Value::Int(3)
+        ]))
     );
     // Commas are whitespace.
-    assert_eq!(read_one("[1, 2, 3]").unwrap(), read_one("[1 2 3]").unwrap());
+    assert_eq!(read_one("[1, 2, 3]"), read_one("[1 2 3]"));
 }
 
 #[test]
 fn reader_sugar_expands() {
     assert_eq!(
-        read_one("'x").unwrap(),
-        Value::list(vec![Value::sym("quote"), Value::sym("x")])
+        read_one("'x"),
+        Ok(Value::list(vec![Value::sym("quote"), Value::sym("x")]))
     );
     assert_eq!(
-        read_one("`(a ~b ~@c)").unwrap(),
-        read_one("(quasiquote (a (unquote b) (unquote-splicing c)))").unwrap()
+        read_one("`(a ~b ~@c)"),
+        read_one("(quasiquote (a (unquote b) (unquote-splicing c)))")
     );
     // #(…) shorthand.
-    assert_eq!(
-        read_one("#(+ % 1)").unwrap(),
-        read_one("(fn [%1] (+ %1 1))").unwrap()
-    );
-    assert_eq!(
-        read_one("#(+ %1 %2)").unwrap(),
-        read_one("(fn [%1 %2] (+ %1 %2))").unwrap()
-    );
+    assert_eq!(read_one("#(+ % 1)"), read_one("(fn [%1] (+ %1 1))"));
+    assert_eq!(read_one("#(+ %1 %2)"), read_one("(fn [%1 %2] (+ %1 %2))"));
 }
 
 #[test]
 fn reads_tagged_literals() {
-    let v = read_one("#uuid \"abc\"").unwrap();
-    match v {
-        Value::Tagged { tag, value } => {
-            assert_eq!(&*tag, "uuid");
-            assert_eq!(*value, Value::str("abc"));
-        }
-        other => panic!("expected tagged, got {other}"),
-    }
+    assert_eq!(
+        read_one("#uuid \"abc\""),
+        Ok(Value::Tagged {
+            tag: Rc::from("uuid"),
+            value: Rc::new(Value::str("abc")),
+        })
+    );
 }
 
 #[test]
 fn line_comments_ignored() {
-    assert_eq!(eval("; a comment\n(+ 1 2) ; trailing"), Value::Int(3));
+    assert_eq!(run("; a comment\n(+ 1 2) ; trailing"), Ok(Value::Int(3)));
 }
 
 #[test]
@@ -105,153 +108,153 @@ fn unbalanced_delimiters_error_not_panic() {
 
 #[test]
 fn arithmetic() {
-    assert_eq!(eval("(+ 1 2 3)"), Value::Int(6));
-    assert_eq!(eval("(- 10 3 2)"), Value::Int(5));
-    assert_eq!(eval("(- 5)"), Value::Int(-5));
-    assert_eq!(eval("(* 2 3 4)"), Value::Int(24));
-    assert_eq!(eval("(/ 6 2)"), Value::Float(3.0)); // `/` always float
-    assert_eq!(eval("(mod 7 3)"), Value::Int(1));
-    assert_eq!(eval("(+ 1 2.0)"), Value::Float(3.0)); // int+float promotes
-    assert_eq!(eval("(max 3 7 2)"), Value::Int(7));
-    assert_eq!(eval("(floor 3.7)"), Value::Int(3));
+    assert_eq!(run("(+ 1 2 3)"), Ok(Value::Int(6)));
+    assert_eq!(run("(- 10 3 2)"), Ok(Value::Int(5)));
+    assert_eq!(run("(- 5)"), Ok(Value::Int(-5)));
+    assert_eq!(run("(* 2 3 4)"), Ok(Value::Int(24)));
+    assert_eq!(run("(/ 6 2)"), Ok(Value::Float(3.0))); // `/` always float
+    assert_eq!(run("(mod 7 3)"), Ok(Value::Int(1)));
+    assert_eq!(run("(+ 1 2.0)"), Ok(Value::Float(3.0))); // int+float promotes
+    assert_eq!(run("(max 3 7 2)"), Ok(Value::Int(7)));
+    assert_eq!(run("(floor 3.7)"), Ok(Value::Int(3)));
 }
 
 #[test]
 fn equality_is_numeric_cross_type() {
-    assert_eq!(eval("(= 1 1.0)"), Value::Bool(true));
-    assert_eq!(eval("(= 1 2)"), Value::Bool(false));
-    assert_eq!(eval("(= \"a\" \"a\")"), Value::Bool(true));
-    assert_eq!(eval("(= [1 2] [1 2])"), Value::Bool(true));
-    assert_eq!(eval("(not= 1 2)"), Value::Bool(true));
+    assert_eq!(run("(= 1 1.0)"), Ok(Value::Bool(true)));
+    assert_eq!(run("(= 1 2)"), Ok(Value::Bool(false)));
+    assert_eq!(run("(= \"a\" \"a\")"), Ok(Value::Bool(true)));
+    assert_eq!(run("(= [1 2] [1 2])"), Ok(Value::Bool(true)));
+    assert_eq!(run("(not= 1 2)"), Ok(Value::Bool(true)));
 }
 
 #[test]
 fn comparison_chains() {
-    assert_eq!(eval("(< 1 2 3)"), Value::Bool(true));
-    assert_eq!(eval("(< 1 3 2)"), Value::Bool(false));
-    assert_eq!(eval("(>= 3 3 1)"), Value::Bool(true));
+    assert_eq!(run("(< 1 2 3)"), Ok(Value::Bool(true)));
+    assert_eq!(run("(< 1 3 2)"), Ok(Value::Bool(false)));
+    assert_eq!(run("(>= 3 3 1)"), Ok(Value::Bool(true)));
 }
 
 #[test]
 fn divide_by_zero_is_an_error() {
-    assert!(matches!(try_eval("(/ 1 0)"), Err(LdError::DivideByZero)));
-    assert!(matches!(try_eval("(mod 1 0)"), Err(LdError::DivideByZero)));
+    assert!(matches!(run("(/ 1 0)"), Err(LdError::DivideByZero)));
+    assert!(matches!(run("(mod 1 0)"), Err(LdError::DivideByZero)));
 }
 
 // ── Truthiness & special forms ──────────────────────────────────────────────
 
 #[test]
 fn truthiness() {
-    assert_eq!(eval("(if 0 :yes :no)"), Value::kw("yes")); // 0 is truthy
-    assert_eq!(eval("(if \"\" :yes :no)"), Value::kw("yes")); // "" is truthy
-    assert_eq!(eval("(if nil :yes :no)"), Value::kw("no"));
-    assert_eq!(eval("(if false :yes :no)"), Value::kw("no"));
-    assert_eq!(eval("(if true :yes)"), Value::kw("yes"));
-    assert_eq!(eval("(if false :yes)"), Value::Nil); // no else → nil
+    assert_eq!(run("(if 0 :yes :no)"), Ok(Value::kw("yes"))); // 0 is truthy
+    assert_eq!(run("(if \"\" :yes :no)"), Ok(Value::kw("yes"))); // "" is truthy
+    assert_eq!(run("(if nil :yes :no)"), Ok(Value::kw("no")));
+    assert_eq!(run("(if false :yes :no)"), Ok(Value::kw("no")));
+    assert_eq!(run("(if true :yes)"), Ok(Value::kw("yes")));
+    assert_eq!(run("(if false :yes)"), Ok(Value::Nil)); // no else → nil
 }
 
 #[test]
 fn let_bindings_are_sequential() {
-    assert_eq!(eval("(let [x 1 y (+ x 1)] (* x y))"), Value::Int(2));
+    assert_eq!(run("(let [x 1 y (+ x 1)] (* x y))"), Ok(Value::Int(2)));
 }
 
 #[test]
 fn do_returns_last() {
-    assert_eq!(eval("(do 1 2 3)"), Value::Int(3));
-    assert_eq!(eval("(do)"), Value::Nil);
+    assert_eq!(run("(do 1 2 3)"), Ok(Value::Int(3)));
+    assert_eq!(run("(do)"), Ok(Value::Nil));
 }
 
 #[test]
 fn def_binds_globally() {
     let mut i = Interp::new();
-    i.eval_str("(def x 41)", Budget::new()).unwrap();
-    assert_eq!(
-        i.eval_str("(+ x 1)", Budget::new()).unwrap(),
-        Value::Int(42)
-    );
+    assert!(i.eval_str("(def x 41)", Budget::new()).is_ok());
+    assert_eq!(i.eval_str("(+ x 1)", Budget::new()), Ok(Value::Int(42)));
 }
 
 #[test]
 fn closures_and_recursion() {
     let prog = "(def fact (fn f [n] (if (<= n 1) 1 (* n (f (- n 1)))))) (fact 5)";
-    assert_eq!(eval(prog), Value::Int(120));
+    assert_eq!(run(prog), Ok(Value::Int(120)));
 }
 
 #[test]
 fn closures_capture_environment() {
     let prog = "(def make-adder (fn [n] (fn [x] (+ x n)))) (def add10 (make-adder 10)) (add10 5)";
-    assert_eq!(eval(prog), Value::Int(15));
+    assert_eq!(run(prog), Ok(Value::Int(15)));
 }
 
 #[test]
 fn variadic_rest_param() {
-    assert_eq!(eval("((fn [a & rest] rest) 1 2 3)"), eval("[2 3]"));
-    assert_eq!(eval("((fn [a & rest] a) 1 2 3)"), Value::Int(1));
+    assert_eq!(run("((fn [a & rest] rest) 1 2 3)"), run("[2 3]"));
+    assert_eq!(run("((fn [a & rest] a) 1 2 3)"), Ok(Value::Int(1)));
 }
 
 // ── Higher-order & collections ──────────────────────────────────────────────
 
 #[test]
 fn higher_order_sequence_ops() {
-    assert_eq!(eval("(map #(* % %) [1 2 3])"), eval("[1 4 9]"));
-    assert_eq!(eval("(filter #(> % 2) [1 2 3 4])"), eval("[3 4]"));
-    assert_eq!(eval("(reduce + 0 [1 2 3 4])"), Value::Int(10));
-    assert_eq!(eval("(reduce + [1 2 3 4])"), Value::Int(10));
-    assert_eq!(eval("(count [1 2 3])"), Value::Int(3));
-    assert_eq!(eval("(first [1 2 3])"), Value::Int(1));
-    assert_eq!(eval("(rest [1 2 3])"), eval("[2 3]"));
-    assert_eq!(eval("(reverse [1 2 3])"), eval("[3 2 1]"));
-    assert_eq!(eval("(sort [3 1 2])"), eval("[1 2 3]"));
-    assert_eq!(eval("(range 4)"), eval("[0 1 2 3]"));
+    assert_eq!(run("(map #(* % %) [1 2 3])"), run("[1 4 9]"));
+    assert_eq!(run("(filter #(> % 2) [1 2 3 4])"), run("[3 4]"));
+    assert_eq!(run("(reduce + 0 [1 2 3 4])"), Ok(Value::Int(10)));
+    assert_eq!(run("(reduce + [1 2 3 4])"), Ok(Value::Int(10)));
+    assert_eq!(run("(count [1 2 3])"), Ok(Value::Int(3)));
+    assert_eq!(run("(first [1 2 3])"), Ok(Value::Int(1)));
+    assert_eq!(run("(rest [1 2 3])"), run("[2 3]"));
+    assert_eq!(run("(reverse [1 2 3])"), run("[3 2 1]"));
+    assert_eq!(run("(sort [3 1 2])"), run("[1 2 3]"));
+    assert_eq!(run("(range 4)"), run("[0 1 2 3]"));
 }
 
 #[test]
-fn threading_via_nested_calls() {
-    // (take 2 (sort-by identity ...)) — sort-by with a keyword key.
+fn sort_by_keyword_key() {
     assert_eq!(
-        eval("(sort-by :n [{:n 3} {:n 1} {:n 2}])"),
-        eval("[{:n 1} {:n 2} {:n 3}]")
+        run("(sort-by :n [{:n 3} {:n 1} {:n 2}])"),
+        run("[{:n 1} {:n 2} {:n 3}]")
     );
 }
 
 #[test]
 fn keyword_as_function() {
-    assert_eq!(eval("(:status {:status \"todo\"})"), Value::str("todo"));
-    assert_eq!(eval("(:missing {:status \"todo\"})"), Value::Nil);
-    assert_eq!(eval("(:missing {:a 1} :default)"), Value::kw("default"));
-    assert_eq!(eval("(:a {:a 1} \"fallback\")"), Value::Int(1)); // present → not the default
+    assert_eq!(run("(:status {:status \"todo\"})"), Ok(Value::str("todo")));
+    assert_eq!(run("(:missing {:status \"todo\"})"), Ok(Value::Nil));
+    assert_eq!(run("(:missing {:a 1} :default)"), Ok(Value::kw("default")));
+    assert_eq!(run("(:a {:a 1} \"fallback\")"), Ok(Value::Int(1))); // present → not default
 }
 
 #[test]
 fn maps_and_sets() {
-    assert_eq!(eval("(get {:a 1 :b 2} :b)"), Value::Int(2));
-    assert_eq!(eval("(assoc {:a 1} :b 2)"), eval("{:a 1 :b 2}"));
-    assert_eq!(eval("(dissoc {:a 1 :b 2} :a)"), eval("{:b 2}"));
-    assert_eq!(eval("(keys {:a 1 :b 2})"), eval("[:a :b]"));
-    assert_eq!(eval("(contains? #{:a :b} :a)"), Value::Bool(true));
-    assert_eq!(eval("(union #{1 2} #{2 3})"), eval("#{1 2 3}"));
-    assert_eq!(eval("(intersection #{1 2 3} #{2 3 4})"), eval("#{2 3}"));
-    assert_eq!(eval("(count #{1 1 2})"), Value::Int(2)); // set dedups
+    assert_eq!(run("(get {:a 1 :b 2} :b)"), Ok(Value::Int(2)));
+    assert_eq!(run("(assoc {:a 1} :b 2)"), run("{:a 1 :b 2}"));
+    assert_eq!(run("(dissoc {:a 1 :b 2} :a)"), run("{:b 2}"));
+    assert_eq!(run("(keys {:a 1 :b 2})"), run("[:a :b]"));
+    assert_eq!(run("(contains? #{:a :b} :a)"), Ok(Value::Bool(true)));
+    assert_eq!(run("(union #{1 2} #{2 3})"), run("#{1 2 3}"));
+    assert_eq!(run("(intersection #{1 2 3} #{2 3 4})"), run("#{2 3}"));
+    assert_eq!(run("(count #{1 1 2})"), Ok(Value::Int(2))); // set dedups
 }
 
 #[test]
 fn string_ops() {
-    assert_eq!(eval("(str \"a\" 1 :b)"), Value::str("a1:b"));
-    assert_eq!(eval("(upper \"hi\")"), Value::str("HI"));
-    assert_eq!(eval("(join \", \" [\"a\" \"b\"])"), Value::str("a, b"));
-    assert_eq!(eval("(count (words \"a b c\"))"), Value::Int(3));
-    assert_eq!(eval("(includes? \"hello\" \"ell\")"), Value::Bool(true));
-    assert_eq!(eval("(subs \"hello\" 1 3)"), Value::str("el"));
+    assert_eq!(run("(str \"a\" 1 :b)"), Ok(Value::str("a1:b")));
+    assert_eq!(run("(upper \"hi\")"), Ok(Value::str("HI")));
+    assert_eq!(run("(join \", \" [\"a\" \"b\"])"), Ok(Value::str("a, b")));
+    assert_eq!(run("(count (words \"a b c\"))"), Ok(Value::Int(3)));
+    assert_eq!(run("(includes? \"hello\" \"ell\")"), Ok(Value::Bool(true)));
+    assert_eq!(run("(subs \"hello\" 1 3)"), Ok(Value::str("el")));
 }
 
 #[test]
 fn collection_literals_evaluate_elements() {
-    assert_eq!(eval("[1 (+ 1 1) 3]"), eval("[1 2 3]"));
-    assert_eq!(eval("{:sum (+ 1 2)}"), eval("{:sum 3}"));
+    assert_eq!(run("[1 (+ 1 1) 3]"), run("[1 2 3]"));
+    assert_eq!(run("{:sum (+ 1 2)}"), run("{:sum 3}"));
     // But quote keeps them literal.
     assert_eq!(
-        eval("'(+ 1 2)"),
-        Value::list(vec![Value::sym("+"), Value::Int(1), Value::Int(2)])
+        run("'(+ 1 2)"),
+        Ok(Value::list(vec![
+            Value::sym("+"),
+            Value::Int(1),
+            Value::Int(2)
+        ]))
     );
 }
 
@@ -259,31 +262,31 @@ fn collection_literals_evaluate_elements() {
 
 #[test]
 fn quasiquote_unquote_and_splice() {
-    let prog = "(let [x 2 xs [3 4]] `(1 ~x ~@xs 5))";
-    assert_eq!(eval(prog), eval("[1 2 3 4 5]").pipe_to_list());
+    // Sequential equality treats the produced list as equal to the same items.
+    assert_eq!(
+        run("(let [x 2 xs [3 4]] `(1 ~x ~@xs 5))"),
+        run("(list 1 2 3 4 5)")
+    );
 }
 
 // ── Reflection ──────────────────────────────────────────────────────────────
 
 #[test]
 fn eval_and_read_reflection() {
-    assert_eq!(eval("(eval '(+ 1 2))"), Value::Int(3));
-    assert_eq!(eval("(read \"(+ 1 2)\")"), eval("'(+ 1 2)"));
-    assert_eq!(eval("(type 5)"), Value::kw("int"));
-    assert_eq!(eval("(type :x)"), Value::kw("keyword"));
+    assert_eq!(run("(eval '(+ 1 2))"), Ok(Value::Int(3)));
+    assert_eq!(run("(read \"(+ 1 2)\")"), run("'(+ 1 2)"));
+    assert_eq!(run("(type 5)"), Ok(Value::kw("int")));
+    assert_eq!(run("(type :x)"), Ok(Value::kw("keyword")));
 }
 
 // ── Errors as values ────────────────────────────────────────────────────────
 
 #[test]
 fn errors_are_structured_not_panics() {
-    assert!(matches!(
-        try_eval("undefined-symbol"),
-        Err(LdError::Unbound(_))
-    ));
-    assert!(matches!(try_eval("(1 2 3)"), Err(LdError::NotCallable(_))));
-    assert!(matches!(try_eval("(+ 1 \"a\")"), Err(LdError::Type { .. })));
-    assert!(matches!(try_eval("(if)"), Err(LdError::Syntax { .. })));
+    assert!(matches!(run("undefined-symbol"), Err(LdError::Unbound(_))));
+    assert!(matches!(run("(1 2 3)"), Err(LdError::NotCallable(_))));
+    assert!(matches!(run("(+ 1 \"a\")"), Err(LdError::Type { .. })));
+    assert!(matches!(run("(if)"), Err(LdError::Syntax { .. })));
 }
 
 // ── Sandbox budget ──────────────────────────────────────────────────────────
@@ -308,7 +311,7 @@ fn step_budget_aborts() {
 #[test]
 fn determinism_same_input_same_output() {
     let prog = "(sort-by :p (map #(assoc % :p (* 2 (:n %))) [{:n 3} {:n 1} {:n 2}]))";
-    assert_eq!(eval(prog), eval(prog));
+    assert_eq!(run(prog), run(prog));
 }
 
 // ── Property tests ──────────────────────────────────────────────────────────
@@ -350,23 +353,6 @@ proptest! {
     #[test]
     fn print_read_round_trip(v in arb_value()) {
         let printed = v.to_string();
-        let back = read_one(&printed)
-            .unwrap_or_else(|e| panic!("could not re-read {printed:?}: {e}"));
-        prop_assert_eq!(back, v);
-    }
-}
-
-// A tiny helper to keep one quasiquote assertion honest: `(1 2 …)` builds a
-// list, while `[1 2 …]` builds a vector; value-equality treats them as equal,
-// but we make the intent explicit here.
-trait PipeToList {
-    fn pipe_to_list(self) -> Value;
-}
-impl PipeToList for Value {
-    fn pipe_to_list(self) -> Value {
-        match self {
-            Value::Vector(xs) => Value::List(xs),
-            other => other,
-        }
+        prop_assert_eq!(read_one(&printed), Ok(v));
     }
 }
