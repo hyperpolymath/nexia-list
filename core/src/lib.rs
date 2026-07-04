@@ -13,12 +13,16 @@
 //! - `wikilink`: `[[Title]]` reference parsing.
 //! - `exchange`: Markdown-vault / OPML import & export.
 //! - `agent`: persistent saved queries (the app's namesake feature).
+//! - `lambdadelta` (λδ): the programmable substrate — a small homoiconic Lisp
+//!   whose kernel knows nothing about notes (a host registers notebook
+//!   builtins). Opt-in and invisible by default (see ADR-0003).
 //! - `wasm` (feature "wasm"): browser bindings; the web UI runs this crate
 //!   compiled to WebAssembly as its single source of truth.
 
 #![forbid(unsafe_code)]
 pub mod agent;
 pub mod exchange;
+pub mod lambdadelta;
 pub mod note;
 pub mod notebook;
 pub mod storage;
