@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# .hypatia-ignore — scoped, documented exemptions for the Hypatia scanner.
+#
+# Format (one entry per line):
+#     <rule_module>/<rule_type>:<path-fragment>
+#     <rule_module>/*:<path-fragment>          (any type in module)
+#     <path-fragment>                           (any rule, any module)
+#
+# Lines starting with `#` are comments. A path-fragment is a substring match
+# against the repo-relative file path.
+#
+# NOTE: deliberately NOT using .hypatia-baseline.json for this — its mere
+# presence triggers the estate's "Validate Hypatia Baseline" governance job,
+# which is currently broken estate-wide (fails on any finding >= 'info'
+# regardless of baseline content; see hypatia#566, and standards' own fix
+# for this was to delete its baseline file entirely rather than work around
+# the validator). .hypatia-ignore doesn't trigger that job, so it's the
+# working exemption mechanism until hypatia#566 is actually fixed.
+
+# ─── ui/ is a pre-existing ReScript frontend, predates the estate ban ────
+#
+# ReScript is banned estate-wide in favour of AffineScript, but this repo's
+# UI (ui/src/*.res, ui/tests/*.res, 14 files) predates that policy and
+# hasn't been migrated yet. Grandfathered here, same as stapeln's
+# equivalent carve-out, until the migration lands.
+cicd_rules/banned_language_file:ui/
