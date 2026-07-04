@@ -42,3 +42,4 @@ cicd_rules/banned_language_file:ui/src/store/Persist.res
 cicd_rules/banned_language_file:ui/src/store/WasmStore.res
 cicd_rules/banned_language_file:ui/tests/GraphLayoutTests.res
 cicd_rules/banned_language_file:ui/tests/NavigationTests.res
+cicd_rules/banned_language_file:ui/tests/UpdateTests.res
