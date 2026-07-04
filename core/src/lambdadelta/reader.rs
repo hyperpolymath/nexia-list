@@ -34,7 +34,9 @@ pub fn read_all(src: &str) -> LdResult<Vec<Value>> {
 pub fn read_one(src: &str) -> LdResult<Value> {
     let mut forms = read_all(src)?;
     match forms.len() {
-        1 => Ok(forms.pop().unwrap()),
+        // `remove(0)` on a length-1 vec is total — no unwrap, keeping the reader
+        // strictly panic-free.
+        1 => Ok(forms.remove(0)),
         0 => Err(LdError::Read {
             msg: "expected a form, found none".to_string(),
             pos: 0,

@@ -43,3 +43,13 @@ cicd_rules/banned_language_file:ui/src/store/WasmStore.res
 cicd_rules/banned_language_file:ui/tests/GraphLayoutTests.res
 cicd_rules/banned_language_file:ui/tests/NavigationTests.res
 cicd_rules/banned_language_file:ui/tests/UpdateTests.res
+
+# ─── λδ kernel test module: unwrap()/panic! are how tests assert ─────────
+#
+# core/src/lambdadelta/tests.rs is unit-test code. `unwrap()` and `panic!`
+# there are the idiomatic assertion mechanism (a failed unwrap IS the test
+# failure) — not a runtime DoS surface. The *production* kernel is held
+# strictly panic-free and stays under the code_safety scanner deliberately,
+# so this carve-out is scoped to the test file alone.
+code_safety/unwrap_without_check:core/src/lambdadelta/tests.rs
+code_safety/panic_macro:core/src/lambdadelta/tests.rs
