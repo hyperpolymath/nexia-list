@@ -36,6 +36,23 @@ fn parse_id(id: &str) -> Result<Uuid, JsValue> {
     Uuid::parse_str(id).map_err(|_| err(format!("Invalid note id: {id}")))
 }
 
+/// Evaluate a LambdaDelta (λδ) source string against a **fresh** kernel holding
+/// only the pure builtins — no notebook host bindings yet (Phase L0). Returns
+/// the printed result value, or a JS `Error` carrying the structured diagnostic.
+///
+/// This is the browser-facing seam for the programmable substrate (ADR-0003),
+/// intentionally headless: it proves the kernel runs in WASM. Notebook-aware
+/// contexts (formulas, agent predicates, actions) arrive once host bindings are
+/// registered in a later phase — the kernel/host seam means that is additive.
+#[wasm_bindgen(js_name = lambdadeltaEval)]
+pub fn lambdadelta_eval(src: &str) -> Result<String, JsValue> {
+    use crate::lambdadelta::{Budget, Interp};
+    Interp::new()
+        .eval_str(src, Budget::new())
+        .map(|v| v.to_string())
+        .map_err(err)
+}
+
 /// UI-facing shape of a note. Optional fields are omitted when absent
 /// (ReScript reads absent as None); `links`/`attributes` are always present.
 #[derive(Serialize)]
