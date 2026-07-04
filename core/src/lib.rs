@@ -16,6 +16,9 @@
 //! - `lambdadelta` (λδ): the programmable substrate — a small homoiconic Lisp
 //!   whose kernel knows nothing about notes (a host registers notebook
 //!   builtins). Opt-in and invisible by default (see ADR-0003).
+//! - `lambdadelta_host`: the notebook host for λδ — registers the note-aware
+//!   builtins into a kernel through the seam. This is where λδ touches notes;
+//!   the kernel stays note-agnostic.
 //! - `wasm` (feature "wasm"): browser bindings; the web UI runs this crate
 //!   compiled to WebAssembly as its single source of truth.
 
@@ -23,6 +26,7 @@
 pub mod agent;
 pub mod exchange;
 pub mod lambdadelta;
+pub mod lambdadelta_host;
 pub mod note;
 pub mod notebook;
 pub mod storage;

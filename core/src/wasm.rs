@@ -199,6 +199,32 @@ impl WasmNotebook {
         to_js(&NotebookView::from(&self.inner))
     }
 
+    /// Evaluate a LambdaDelta (λδ) program against this notebook, with the full
+    /// notebook host installed (readers **and** mutators). Returns the printed
+    /// result value; any `!` effects mutate this notebook in place, so the UI
+    /// should re-`snapshot()` afterwards.
+    ///
+    /// The kernel/host seam makes this a thin wrapper: share the notebook,
+    /// register the host builtins, evaluate, and reclaim the notebook.
+    #[wasm_bindgen(js_name = evalLambdadelta)]
+    pub fn eval_lambdadelta(&mut self, src: &str) -> Result<String, JsValue> {
+        use crate::lambdadelta::{Budget, Interp};
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let shared = Rc::new(RefCell::new(std::mem::take(&mut self.inner)));
+        let mut interp = Interp::new();
+        crate::lambdadelta_host::register(&mut interp, shared.clone());
+        let result = interp.eval_str(src, Budget::new());
+        drop(interp); // release the host's Rc clones so we can reclaim the notebook
+
+        match Rc::try_unwrap(shared) {
+            Ok(cell) => self.inner = cell.into_inner(),
+            Err(still_shared) => self.inner = still_shared.borrow().clone(),
+        }
+        result.map(|v| v.to_string()).map_err(err)
+    }
+
     /// Export every note as a Markdown file: `[{ name, content }]`.
     pub fn export_markdown(&self) -> Result<JsValue, JsValue> {
         let files: Vec<MarkdownFileView> = crate::exchange::to_markdown(&self.inner)
