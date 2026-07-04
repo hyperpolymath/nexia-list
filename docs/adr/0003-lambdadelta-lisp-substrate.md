@@ -1,8 +1,19 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 # ADR-0003: LambdaDelta — a Lisp-power substrate for Nexia-List
 
-- **Status:** Proposed
+- **Status:** Accepted (fundamentals confirmed — see
+  [λδ spec v0.1](../design/lambdadelta-spec.md) §9)
 - **Date:** 2026-07-03
+
+> **Update (2026-07-03):** the language fundamentals are confirmed — Clojure-
+> flavoured syntax, note-as-immutable-map, **hygienic macros**, **multimethods/
+> protocols** for extensibility, sets/`match`/tagged literals, and the
+> **kernel/host seam** (a notebook-agnostic language kernel with host bindings
+> registered via a capability-carrying interface) that makes an SDK, embedding,
+> and the plugin ecosystem cheap. The plugin system + minter/provisioner/
+> configurator/harness dev wizard are tracked in
+> [issue #33](https://github.com/hyperpolymath/nexia-list/issues/33). Detail in
+> the spec.
 
 > *A note is a letter we send to our future self.*
 > — Mark Bernstein, *The Tinderbox Way*
