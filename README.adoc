@@ -54,9 +54,11 @@ Nexia-List follows the **local-first** philosophy:
 
 == Architecture
 
-Nexia-List is **web-first**. The primary target is the browser: the Rust core is
+Nexia-List is **local-first** in design, **web first** in user interface. The primary target is the browser: the Rust core is
 compiled to WebAssembly so the real engine runs client-side, with no server
-required. A desktop shell is optional and external.
+required. A desktop shell is optional and external. You can use it anywhere you can access a browser (online, offline, mobile
+desktop, or whatever). Once you download it it is yours to run (so long as none of the dependencies get seized by BigTech).
+Download it and you have the file to keep, yourself, forever.
 
 [source]
 ----
