@@ -19,6 +19,13 @@ image:https://img.shields.io/badge/License-MPL--2.0-blue.svg[License: MPL-2.0,li
 image:https://img.shields.io/badge/Platform-Web%20%7C%20Desktop%20(optional)-green.svg[Platform]
 image:https://img.shields.io/badge/ReScript-TEA--style-orange.svg[ReScript TEA-style]
 image:https://img.shields.io/badge/Core-Rust%20%2B%20WASM-red.svg[Rust + WASM]
+image:https://img.shields.io/badge/software-keepable-2ea44f[Keepable software]
+image:https://img.shields.io/badge/not-SaaS--bound-2ea44f[Not SaaS-bound]
+image:https://img.shields.io/badge/access-runs%20after%20shutdown-2ea44f[Runs after shutdown]
+
+++++
+<p align="center"><em>Local-first · User-owned data · No server required · Runs offline</em></p>
+++++
 
 toc::[]
 
