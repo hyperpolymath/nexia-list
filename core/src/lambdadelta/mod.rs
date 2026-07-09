@@ -26,6 +26,7 @@
 mod builtins;
 mod error;
 mod eval;
+mod prelude;
 mod reader;
 mod value;
 
@@ -33,7 +34,11 @@ pub use error::{LdError, LdResult};
 pub use reader::{read_all, read_one};
 pub use value::{Builtin, BuiltinImpl, Closure, Env, Scope, Value};
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
+
+use value::MultiMethod;
 
 /// A resource budget for one evaluation (spec §6). Bounds keep user code from
 /// hanging the tab: a reduction-step ceiling and a recursion-depth limit. Both
@@ -83,6 +88,17 @@ pub struct Interp {
     /// The top-level (notebook) environment. `def` binds here.
     pub global: Env,
     pub(crate) budget: Budget,
+    /// User macros, keyed by (base) name. Expanded before evaluation.
+    pub(crate) macros: HashMap<Rc<str>, Rc<Closure>>,
+    /// Open multimethods, keyed by (base) name.
+    pub(crate) multimethods: HashMap<Rc<str>, Rc<RefCell<MultiMethod>>>,
+    /// Monotonic source of fresh hygiene marks (one per macro expansion).
+    pub(crate) mark_counter: u64,
+    /// The mark applied to symbols a quasiquote *introduces* during the current
+    /// macro expansion (`None` outside macro expansion).
+    pub(crate) current_mark: Option<u64>,
+    /// Monotonic source of `gensym` uniqueness.
+    pub(crate) gensym_counter: u64,
 }
 
 impl Interp {
@@ -93,8 +109,17 @@ impl Interp {
         let mut interp = Interp {
             global,
             budget: Budget::new(),
+            macros: HashMap::new(),
+            multimethods: HashMap::new(),
+            mark_counter: 0,
+            current_mark: None,
+            gensym_counter: 0,
         };
         builtins::install(&mut interp);
+        // The standard prelude: hygienic sugar macros written in λδ itself
+        // (when/cond/and/or/->/->>/if-let/…). A prelude bug surfaces in tests as
+        // a missing macro, never a panic.
+        let _ = interp.eval_str(prelude::PRELUDE, Budget::new());
         interp
     }
 
