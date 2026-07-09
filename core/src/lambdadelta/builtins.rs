@@ -205,6 +205,19 @@ pub fn install(interp: &mut Interp) {
         super::reader::read_one(want_str("read", &a[0])?)
     });
     interp.register_builtin("type", 1, Some(1), |_, a| Ok(Value::kw(a[0].type_name())));
+
+    // Macro reflection (spec §3, §4).
+    interp.register_builtin("gensym", 0, Some(1), |i, a| {
+        let prefix = match a.first() {
+            Some(Value::Str(s)) => s.to_string(),
+            Some(Value::Symbol(s)) => super::value::base_name(s).to_string(),
+            _ => "g".to_string(),
+        };
+        i.gensym_counter += 1;
+        Ok(Value::sym(format!("{prefix}__{}", i.gensym_counter)))
+    });
+    interp.register_builtin("macroexpand-1", 1, Some(1), |i, a| i.macroexpand_1(&a[0]));
+    interp.register_builtin("macroexpand", 1, Some(1), |i, a| i.macroexpand(&a[0]));
 }
 
 // ── Numeric helpers ──────────────────────────────────────────────────────────

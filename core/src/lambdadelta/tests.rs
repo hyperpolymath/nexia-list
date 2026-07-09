@@ -314,6 +314,113 @@ fn determinism_same_input_same_output() {
     assert_eq!(run(prog), run(prog));
 }
 
+// ── Macros, hygiene & multimethods ──────────────────────────────────────────
+
+#[test]
+fn user_defmacro_expands_and_evaluates() {
+    assert_eq!(
+        run("(defmacro my-when [c e] `(if ~c ~e nil)) (my-when true 42)"),
+        Ok(Value::Int(42))
+    );
+    assert_eq!(
+        run("(defmacro my-when [c e] `(if ~c ~e nil)) (my-when false 42)"),
+        Ok(Value::Nil)
+    );
+}
+
+#[test]
+fn macroexpand_reveals_the_expansion() {
+    // Marks are internal; `str` prints the base name, so the head reads as `if`.
+    assert_eq!(
+        run("(str (first (macroexpand-1 '(when true 1))))"),
+        Ok(Value::str("if"))
+    );
+}
+
+#[test]
+fn prelude_conditionals() {
+    assert_eq!(run("(when true 1 2 3)"), Ok(Value::Int(3)));
+    assert_eq!(run("(when false 1)"), Ok(Value::Nil));
+    assert_eq!(run("(unless false 7)"), Ok(Value::Int(7)));
+    assert_eq!(run("(cond false 1 true 2 :else 3)"), Ok(Value::Int(2)));
+    assert_eq!(run("(cond false 1 false 2)"), Ok(Value::Nil));
+}
+
+#[test]
+fn prelude_short_circuit_logic() {
+    assert_eq!(run("(and)"), Ok(Value::Bool(true)));
+    assert_eq!(run("(and 1 2 3)"), Ok(Value::Int(3)));
+    assert_eq!(run("(and 1 nil 3)"), Ok(Value::Nil));
+    assert_eq!(run("(or)"), Ok(Value::Nil));
+    assert_eq!(run("(or nil false 5)"), Ok(Value::Int(5)));
+    assert_eq!(run("(or nil false)"), Ok(Value::Bool(false)));
+}
+
+#[test]
+fn prelude_threading() {
+    assert_eq!(run("(-> 5 (+ 1) (* 2))"), Ok(Value::Int(12)));
+    // Non-commutative op distinguishes -> (arg first) from ->> (arg last).
+    assert_eq!(run("(-> 10 (- 3))"), Ok(Value::Int(7)));
+    assert_eq!(run("(->> 10 (- 3))"), Ok(Value::Int(-7)));
+    // Bare-symbol steps thread too.
+    assert_eq!(run("(-> [3 1 2] sort first)"), Ok(Value::Int(1)));
+}
+
+#[test]
+fn prelude_if_let() {
+    assert_eq!(run("(if-let [x 5] (* x x) :none)"), Ok(Value::Int(25)));
+    assert_eq!(run("(if-let [x nil] x :none)"), Ok(Value::kw("none")));
+    assert_eq!(run("(when-let [x 3] (+ x 1))"), Ok(Value::Int(4)));
+}
+
+#[test]
+fn hygiene_introduced_binding_never_captures() {
+    // The macro introduces `x`; the caller also has `x`. The caller's `x`
+    // spliced via `~e` must NOT be captured by the macro's `x = 2`.
+    let prog = "(defmacro m [e] `(let [x 2] ~e)) (let [x 1] (m x))";
+    assert_eq!(run(prog), Ok(Value::Int(1)));
+}
+
+#[test]
+fn hygiene_free_identifier_is_referentially_transparent() {
+    // The macro's `+` must mean the global `+`, even though the caller has
+    // locally rebound `+` to `-`.
+    let prog = "(defmacro inc [n] `(+ ~n 1)) (let [+ -] (inc 5))";
+    assert_eq!(run(prog), Ok(Value::Int(6)));
+}
+
+#[test]
+fn prelude_temporaries_are_hygienic() {
+    // `and`'s internal temp must not capture a user `v`.
+    assert_eq!(run("(let [v 10] (and true v))"), Ok(Value::Int(10)));
+}
+
+#[test]
+fn gensym_is_fresh() {
+    assert_eq!(run("(= (gensym) (gensym))"), Ok(Value::Bool(false)));
+    assert_eq!(
+        run("(includes? (str (gensym \"foo\")) \"foo__\")"),
+        Ok(Value::Bool(true))
+    );
+}
+
+#[test]
+fn multimethods_dispatch_on_type() {
+    let prog = r##"
+        (defmulti describe :type)
+        (defmethod describe "task" [n] (str "task:" (:title n)))
+        (defmethod describe :default [n] "other")
+        [(describe {:type "task" :title "T"}) (describe {:type "note"})]
+    "##;
+    assert_eq!(
+        run(prog),
+        Ok(Value::vector(vec![
+            Value::str("task:T"),
+            Value::str("other")
+        ]))
+    );
+}
+
 // ── Property tests ──────────────────────────────────────────────────────────
 
 use proptest::prelude::*;

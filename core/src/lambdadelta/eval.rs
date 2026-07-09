@@ -10,7 +10,9 @@
 use std::rc::Rc;
 
 use super::error::{LdError, LdResult};
-use super::value::{map_lookup, Closure, Env, Scope, Value};
+use super::value::{
+    base_name, is_marked, map_lookup, value_eq, Closure, Env, MultiMethod, Scope, Value,
+};
 use super::Interp;
 
 impl Interp {
@@ -39,8 +41,8 @@ impl Interp {
             | Value::Fn(_)
             | Value::Builtin(_) => Ok(form.clone()),
 
-            // Symbols resolve through the scope chain.
-            Value::Symbol(s) => env.get(s).ok_or_else(|| LdError::Unbound(s.to_string())),
+            // Symbols resolve through the scope chain (hygiene-aware).
+            Value::Symbol(s) => self.resolve_symbol(s, env),
 
             // Collection literals evaluate their elements.
             Value::Vector(items) => {
@@ -80,31 +82,57 @@ impl Interp {
         forms.iter().map(|f| self.eval(f, env)).collect()
     }
 
+    /// Resolve a symbol, honouring hygiene: a marked *free* identifier that is
+    /// not bound in scope falls back to its base name in the global (definition)
+    /// environment — giving referential transparency and immunity to capture by
+    /// use-site locals.
+    fn resolve_symbol(&self, name: &Rc<str>, env: &Env) -> LdResult<Value> {
+        if let Some(v) = env.get(name) {
+            return Ok(v);
+        }
+        if is_marked(name) {
+            if let Some(v) = self.global.get(base_name(name)) {
+                return Ok(v);
+            }
+        }
+        Err(LdError::Unbound(base_name(name).to_string()))
+    }
+
     fn eval_list(&mut self, items: &[Value], env: &Env) -> LdResult<Value> {
         // `()` evaluates to itself (an empty list).
         let Some(head) = items.first() else {
             return Ok(Value::list(Vec::new()));
         };
 
+        // Special forms and macros dispatch on the *base* name, so a
+        // hygienically-marked `let`/`if`/user-macro in a template still works.
         if let Value::Symbol(s) = head {
-            match s.as_ref() {
+            match base_name(s) {
                 "quote" => return self.sf_quote(items),
                 "if" => return self.sf_if(items, env),
                 "do" => return self.sf_do(items, env),
                 "let" => return self.sf_let(items, env),
                 "fn" | "lambda" => return self.sf_fn(items, env),
                 "def" => return self.sf_def(items, env),
+                "defmacro" => return self.sf_defmacro(items, env),
+                "defmulti" => return self.sf_defmulti(items, env),
+                "defmethod" => return self.sf_defmethod(items, env),
                 "quasiquote" => {
                     self.arity_special("quasiquote", items, 1)?;
                     return self.eval_quasi(&items[1], env, 1);
                 }
                 "unquote" | "unquote-splicing" => {
                     return Err(LdError::Syntax {
-                        form: s.to_string(),
+                        form: base_name(s).to_string(),
                         msg: "used outside of a quasiquote".to_string(),
                     });
                 }
-                _ => {}
+                other => {
+                    if let Some(mac) = self.macros.get(other).cloned() {
+                        let expanded = self.expand_macro(&mac, &items[1..])?;
+                        return self.eval(&expanded, env);
+                    }
+                }
             }
         }
 
@@ -112,6 +140,57 @@ impl Interp {
         let f = self.eval(head, env)?;
         let args = self.eval_each(&items[1..], env)?;
         self.apply(&f, &args)
+    }
+
+    // ── Macros & hygiene ─────────────────────────────────────────────────────
+
+    /// Expand one macro call: apply the transformer to the *unevaluated*
+    /// argument forms under a fresh hygiene mark, so the template's introduced
+    /// symbols cannot capture.
+    fn expand_macro(&mut self, mac: &Rc<Closure>, arg_forms: &[Value]) -> LdResult<Value> {
+        self.tick()?;
+        self.mark_counter += 1;
+        let mark = self.mark_counter;
+        let prev = self.current_mark.replace(mark);
+        let result = self.apply_closure(mac, arg_forms);
+        self.current_mark = prev;
+        result
+    }
+
+    /// Expand `form` once if its head names a macro; otherwise return it as-is.
+    pub fn macroexpand_1(&mut self, form: &Value) -> LdResult<Value> {
+        if let Value::List(items) = form {
+            if let Some(Value::Symbol(s)) = items.first() {
+                if let Some(mac) = self.macros.get(base_name(s)).cloned() {
+                    return self.expand_macro(&mac, &items[1..]);
+                }
+            }
+        }
+        Ok(form.clone())
+    }
+
+    /// Repeatedly expand until the head no longer names a macro.
+    pub fn macroexpand(&mut self, form: &Value) -> LdResult<Value> {
+        let mut cur = form.clone();
+        loop {
+            let next = self.macroexpand_1(&cur)?;
+            if next == cur {
+                return Ok(next);
+            }
+            cur = next;
+        }
+    }
+
+    /// During macro expansion, tag a template-introduced symbol with the current
+    /// hygiene mark (unless it already carries one). Outside expansion this is a
+    /// no-op, so ordinary quasiquote is unchanged.
+    fn mark_symbol(&self, s: &Rc<str>) -> Value {
+        match self.current_mark {
+            Some(m) if !is_marked(s) => {
+                Value::Symbol(Rc::from(super::value::mangle(s, m).as_str()))
+            }
+            _ => Value::Symbol(s.clone()),
+        }
     }
 
     /// Apply a callable value to already-evaluated arguments.
@@ -335,6 +414,132 @@ impl Interp {
         Ok(value)
     }
 
+    fn sf_defmacro(&mut self, items: &[Value], env: &Env) -> LdResult<Value> {
+        // (defmacro name [params] body…)
+        if items.len() < 3 {
+            return Err(LdError::Syntax {
+                form: "defmacro".to_string(),
+                msg: "expected (defmacro name [params] body…)".to_string(),
+            });
+        }
+        let Value::Symbol(name) = &items[1] else {
+            return Err(LdError::Syntax {
+                form: "defmacro".to_string(),
+                msg: "macro name must be a symbol".to_string(),
+            });
+        };
+        let Value::Vector(param_vals) = &items[2] else {
+            return Err(LdError::Syntax {
+                form: "defmacro".to_string(),
+                msg: "parameters must be a vector".to_string(),
+            });
+        };
+        let (params, rest) = parse_params(param_vals)?;
+        let body = items[3..].to_vec();
+        let transformer = Rc::new(Closure {
+            name: Some(name.clone()),
+            params,
+            rest,
+            body,
+            env: env.clone(),
+        });
+        self.macros.insert(Rc::from(base_name(name)), transformer);
+        Ok(Value::Nil)
+    }
+
+    fn sf_defmulti(&mut self, items: &[Value], env: &Env) -> LdResult<Value> {
+        // (defmulti name dispatch-fn)
+        if items.len() != 3 {
+            return Err(LdError::Syntax {
+                form: "defmulti".to_string(),
+                msg: "expected (defmulti name dispatch-fn)".to_string(),
+            });
+        }
+        let Value::Symbol(name) = &items[1] else {
+            return Err(LdError::Syntax {
+                form: "defmulti".to_string(),
+                msg: "multimethod name must be a symbol".to_string(),
+            });
+        };
+        let dispatch = self.eval(&items[2], env)?;
+        let key: Rc<str> = Rc::from(base_name(name));
+        let mm = Rc::new(std::cell::RefCell::new(MultiMethod {
+            dispatch,
+            methods: Vec::new(),
+            default: None,
+        }));
+        self.multimethods.insert(key.clone(), mm.clone());
+        // Calling `name` dispatches: run the dispatch fn on the args, pick the
+        // matching method (or `:default`), and apply it to the same args.
+        self.register_builtin(&key, 0, None, move |i, args| {
+            let (dispatch, methods, default) = {
+                let m = mm.borrow();
+                (m.dispatch.clone(), m.methods.clone(), m.default.clone())
+            };
+            let dv = i.apply(&dispatch, args)?;
+            let chosen = methods
+                .iter()
+                .find(|(k, _)| value_eq(k, &dv))
+                .map(|(_, c)| c.clone())
+                .or(default);
+            match chosen {
+                Some(c) => i.apply(&Value::Fn(c), args),
+                None => Err(LdError::User(format!("no matching method for {dv}"))),
+            }
+        });
+        Ok(Value::Nil)
+    }
+
+    fn sf_defmethod(&mut self, items: &[Value], env: &Env) -> LdResult<Value> {
+        // (defmethod name dispatch-val [params] body…); dispatch-val `:default`
+        // registers the fallback.
+        if items.len() < 4 {
+            return Err(LdError::Syntax {
+                form: "defmethod".to_string(),
+                msg: "expected (defmethod name dispatch-val [params] body…)".to_string(),
+            });
+        }
+        let Value::Symbol(name) = &items[1] else {
+            return Err(LdError::Syntax {
+                form: "defmethod".to_string(),
+                msg: "multimethod name must be a symbol".to_string(),
+            });
+        };
+        let key: Rc<str> = Rc::from(base_name(name));
+        let mm = self
+            .multimethods
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| LdError::User(format!("defmethod: no multimethod named {key}")))?;
+        let is_default = matches!(&items[2], Value::Keyword(k) if k.as_ref() == "default");
+        let dispatch_val = if is_default {
+            Value::Nil
+        } else {
+            self.eval(&items[2], env)?
+        };
+        let Value::Vector(param_vals) = &items[3] else {
+            return Err(LdError::Syntax {
+                form: "defmethod".to_string(),
+                msg: "parameters must be a vector".to_string(),
+            });
+        };
+        let (params, rest) = parse_params(param_vals)?;
+        let body = items[4..].to_vec();
+        let method = Rc::new(Closure {
+            name: Some(name.clone()),
+            params,
+            rest,
+            body,
+            env: env.clone(),
+        });
+        if is_default {
+            mm.borrow_mut().default = Some(method);
+        } else {
+            mm.borrow_mut().methods.push((dispatch_val, method));
+        }
+        Ok(Value::Nil)
+    }
+
     // ── Quasiquote ───────────────────────────────────────────────────────────
 
     /// Expand a quasiquoted template. `~x` evaluates `x`; `~@xs` splices a
@@ -345,7 +550,7 @@ impl Interp {
             Value::List(items) => {
                 // A bare `(unquote e)` at this level evaluates `e`.
                 if let Some(Value::Symbol(s)) = items.first() {
-                    if s.as_ref() == "unquote" && items.len() == 2 {
+                    if base_name(s) == "unquote" && items.len() == 2 {
                         return self.eval(&items[1], env);
                     }
                 }
@@ -356,7 +561,9 @@ impl Interp {
                 let built = self.quasi_seq(items, env, depth)?;
                 Ok(Value::vector(built))
             }
-            // Atoms (including symbols and keywords) quote as themselves.
+            // A template-introduced symbol gets the current hygiene mark.
+            Value::Symbol(s) => Ok(self.mark_symbol(s)),
+            // Other atoms (keywords, numbers, …) quote as themselves.
             other => Ok(other.clone()),
         }
     }
@@ -367,7 +574,7 @@ impl Interp {
         for item in items {
             if let Value::List(inner) = item {
                 if let Some(Value::Symbol(s)) = inner.first() {
-                    if s.as_ref() == "unquote-splicing" && inner.len() == 2 {
+                    if base_name(s) == "unquote-splicing" && inner.len() == 2 {
                         let spliced = self.eval(&inner[1], env)?;
                         match spliced {
                             Value::List(xs) | Value::Vector(xs) => out.extend(xs.iter().cloned()),
@@ -415,7 +622,7 @@ fn parse_params(param_vals: &[Value]) -> LdResult<ParamList> {
     let mut it = param_vals.iter();
     while let Some(p) = it.next() {
         match p {
-            Value::Symbol(s) if s.as_ref() == "&" => {
+            Value::Symbol(s) if base_name(s) == "&" => {
                 let r = it.next().ok_or_else(|| LdError::Syntax {
                     form: "fn".to_string(),
                     msg: "expected a symbol after &".to_string(),

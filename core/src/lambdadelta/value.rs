@@ -65,6 +65,49 @@ pub struct Closure {
     pub env: Env,
 }
 
+/// An open multimethod: dispatch on any function of the arguments (spec §3).
+/// `defmulti` creates one; `defmethod` adds methods keyed by dispatch value
+/// (with an optional `:default`).
+pub struct MultiMethod {
+    /// The dispatch function; its result is matched against method keys.
+    pub dispatch: Value,
+    /// `(dispatch-value, method)` pairs, matched by value equality.
+    pub methods: Vec<(Value, Rc<Closure>)>,
+    /// The `:default` fallback method, if any.
+    pub default: Option<Rc<Closure>>,
+}
+
+// ── Macro hygiene: marks encoded in symbol names (Kohlbecker-style) ───────────
+//
+// A hygienic macro expansion tags the identifiers it *introduces* with a fresh
+// mark, so they cannot capture — and are not captured by — identifiers from the
+// macro's arguments or the use site. We encode a mark by suffixing the symbol
+// name with `\u{1}<mark>` (a control byte the reader never produces). Binding
+// resolution keys on the full (marked) name; a marked *free* identifier falls
+// back to its base name in the definition (global) environment, giving
+// referential transparency. Display strips the mark, so output stays readable.
+
+/// The `\u{1}` (SOH) byte separates a symbol's base name from its hygiene mark.
+const MARK_SEP: char = '\u{1}';
+
+/// A symbol name with its hygiene mark stripped.
+pub(crate) fn base_name(name: &str) -> &str {
+    match name.find(MARK_SEP) {
+        Some(i) => &name[..i],
+        None => name,
+    }
+}
+
+/// Does this symbol name carry a hygiene mark?
+pub(crate) fn is_marked(name: &str) -> bool {
+    name.contains(MARK_SEP)
+}
+
+/// Apply hygiene `mark` to an (unmarked) base name.
+pub(crate) fn mangle(base: &str, mark: u64) -> String {
+    format!("{base}{MARK_SEP}{mark}")
+}
+
 /// The concrete implementation of a native function. Receives the interpreter
 /// (for `apply`, budget, and — for host builtins — captured host state) and the
 /// already-evaluated argument slice.
@@ -217,7 +260,7 @@ impl fmt::Display for Value {
             Value::Int(n) => write!(f, "{n}"),
             Value::Float(x) => write!(f, "{}", format_float(*x)),
             Value::Str(s) => write!(f, "\"{}\"", escape_str(s)),
-            Value::Symbol(s) => f.write_str(s),
+            Value::Symbol(s) => f.write_str(base_name(s)),
             Value::Keyword(s) => write!(f, ":{s}"),
             Value::List(items) => write_seq(f, "(", items, ")"),
             Value::Vector(items) => write_seq(f, "[", items, "]"),
