@@ -12,26 +12,37 @@ setup:
     deno task setup
     rustup target add wasm32-unknown-unknown || true
 
-# Build the project (ReScript compile + esbuild web bundle)
-build:
-    deno task build
-
 # Build the Rust core to WASM for the browser
 build-wasm:
     deno task build:wasm
 
+# Build the project (ReScript compile + esbuild web bundle)
+# Depends on build-wasm: esbuild resolves web/wasm/nexia_core.js when it bundles.
+build: build-wasm
+    deno task build
+
 # Run all tests (Rust core + UI)
-test:
+# Depends on build: the UI tests import the generated *.res.js and the wasm
+# bindings, so a clean checkout cannot go straight to `just test` without them.
+# Both builds are incremental — a warm no-op costs well under a second.
+test: build
     deno task test
+
+# Rust core tests only — no build step, for a tight inner loop
+test-rust:
+    deno task test:rust
 
 # Run the development server (http://localhost:5173)
 run:
     deno task dev
 
 # Static checks — Deno lint, rustfmt, clippy
+# Mirrors rust-ci.yml exactly: --all-targets --features wasm, run from the
+# workspace root. A narrower clippy here would pass locally and fail in CI.
 check:
     deno lint
-    cd core && cargo fmt --check && cargo clippy -- -D warnings
+    cargo fmt --check
+    cargo clippy --all-targets --features wasm -- -D warnings
 
 # Publish docs/wikis/*.md to the GitHub wiki (docs/wikis/ is the source of truth)
 #   just wiki-sync dry    # preview what would change, push nothing
@@ -78,9 +89,34 @@ doctor:
     @command -v git >/dev/null 2>&1 && echo "  [OK] git" || echo "  [FAIL] git not found"
     @command -v deno >/dev/null 2>&1 && echo "  [OK] deno" || echo "  [FAIL] deno not found (need Deno 2.x)"
     @command -v cargo >/dev/null 2>&1 && echo "  [OK] cargo" || echo "  [FAIL] cargo not found (need Rust stable)"
+    @echo "Checking the WASM toolchain (the browser build depends on it)..."
+    @rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
+        && echo "  [OK] wasm32-unknown-unknown target" \
+        || echo "  [FAIL] wasm32-unknown-unknown target missing — run 'just setup'"
+    @just _wasm-bindgen-check
     @echo "Checking for hardcoded paths..."
     @grep -rn '/var/mnt/eclipse' --include='*.rs' --include='*.ex' --include='*.res' --include='*.gleam' --include='*.sh' --include='*.toml' . 2>/dev/null | grep -v 'Justfile' | head -5 || echo "  [OK] No hardcoded paths in source"
     @echo "Diagnostics complete."
+
+# The wasm-bindgen CLI must match the wasm-bindgen crate in Cargo.lock exactly;
+# a mismatch fails the browser build with a confusing schema error, so report
+# the drift and the exact command that fixes it.
+[private]
+_wasm-bindgen-check:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    lock="$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock 2>/dev/null | grep '^version' | head -1 | cut -d'"' -f2)"
+    cli="$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')"
+    if [ -z "${lock}" ]; then
+        echo "  [WARN] wasm-bindgen not found in Cargo.lock — skipping version check"
+    elif [ -z "${cli}" ]; then
+        echo "  [FAIL] wasm-bindgen CLI not found — cargo install wasm-bindgen-cli --version ${lock} --locked"
+    elif [ "${cli}" != "${lock}" ]; then
+        echo "  [FAIL] wasm-bindgen CLI ${cli} != Cargo.lock ${lock}"
+        echo "         cargo install wasm-bindgen-cli --version ${lock} --locked --force"
+    else
+        echo "  [OK] wasm-bindgen ${cli} (matches Cargo.lock)"
+    fi
 
 # Guided tour of key features
 tour:
@@ -121,17 +157,21 @@ llm-context:
 
 # Print the current CRG grade (reads from READINESS.md '**Current Grade:** X' line)
 crg-grade:
-    @grade=$$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1); \
-    [ -z "$$grade" ] && grade="X"; \
-    echo "$$grade"
+    #!/usr/bin/env bash
+    set -uo pipefail
+    grade="$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1)"
+    echo "${grade:-X}"
 
 # Generate a shields.io badge markdown for the current CRG grade
 # Looks for '**Current Grade:** X' in READINESS.md; falls back to X
 crg-badge:
-    @grade=$$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1); \
-    [ -z "$$grade" ] && grade="X"; \
-    case "$$grade" in \
-      A) color="brightgreen" ;; B) color="green" ;; C) color="yellow" ;; \
-      D) color="orange" ;; E) color="red" ;; F) color="critical" ;; \
-      *) color="lightgrey" ;; esac; \
-    echo "[![CRG $$grade](https://img.shields.io/badge/CRG-$$grade-$$color?style=flat-square)](https://github.com/hyperpolymath/standards/tree/main/component-readiness-grades)"
+    #!/usr/bin/env bash
+    set -uo pipefail
+    grade="$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1)"
+    grade="${grade:-X}"
+    case "${grade}" in
+      A) color="brightgreen" ;; B) color="green" ;; C) color="yellow" ;;
+      D) color="orange" ;; E) color="red" ;; F) color="critical" ;;
+      *) color="lightgrey" ;;
+    esac
+    echo "[![CRG ${grade}](https://img.shields.io/badge/CRG-${grade}-${color}?style=flat-square)](https://github.com/hyperpolymath/standards/tree/main/component-readiness-grades)"
