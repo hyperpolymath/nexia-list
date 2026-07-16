@@ -7,19 +7,32 @@
 
 This document outlines the development phases for Nexia-List, from MVP to full-featured knowledge management platform.
 
-.Revised sequencing (2026-07)
+.Revised sequencing (updated 2026-07-17)
 [NOTE]
 ====
 Nexia-List is now **web-first**: the Rust core is compiled to WASM and the browser
 is the primary target (see link:docs/adr/0001-wasm-core-web-first.md[ADR-0001]).
-The desktop shell (Gossamer) is optional and external. Current sequencing:
+The desktop shell (Gossamer) is optional and external.
+
+Every item in the previous sequencing block has now shipped:
 
 . Build resurrection (Deno 2 tasks, ReScript compile, esbuild bundle) — ✅ done
-. WASM core integration (wasm-bindgen bridge, IndexedDB/file persistence) — in progress
-. Product CI (rust-ci.yml, ui-ci.yml — landing in a parallel workstream)
-. Tests beyond the core unit suite
-. Canvas drag-and-drop + accessibility + PWA (service worker)
-. Wiki-links, graph view, agents, import/export
+. WASM core integration (wasm-bindgen bridge, IndexedDB autosave + file save/load) — ✅ done
+. Product CI (rust-ci.yml, ui-ci.yml) — ✅ done, green on main
+. Tests beyond the core unit suite — ✅ done (10 UI tests incl. a TEA↔WASM contract test)
+. Canvas drag + accessibility (WCAG 2.2 AA) + PWA (service worker) — ✅ done
+. Wiki-links, graph view, agents, import/export — ✅ done
+. **λδ (LambdaDelta) substrate** — ✅ largely done, and unrecorded until now: L0 kernel,
+  notebook host seam, hygienic macros, multimethods, prelude (~64% of the core)
+
+Next sequencing:
+
+. Bind the dormant WASM exports in ReScript — 10 of 31 are unbound, including both
+  λδ entry points (`lambdadeltaEval`, `evalLambdadelta`)
+. Give λδ a door: L1 fx-fields → L2 action hooks → L3 REPL, gated by progressive
+  disclosure (see link:docs/design/mind-management-plan.md[the mind-management plan])
+. Headless `index.rs` (concordance/BM25/See-Also) — zero UI, zero on-disk change
+. UI surface: multi-pane, command palette, inspector, markdown render
 ====
 
 toc::[]
