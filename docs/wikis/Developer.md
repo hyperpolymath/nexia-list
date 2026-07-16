@@ -17,7 +17,8 @@ This is the discipline Nexia already proved with `Notebook::backlinks` — a rev
 
 | Layer | Technology | Lives in |
 |---|---|---|
-| Core engine | Rust — Note/Notebook, backlinks, substring search, JSON storage (~623 LOC, 12 unit tests) | [`core/`](https://github.com/hyperpolymath/nexia-list/tree/main/core) |
+| Core engine | Rust — Note/Notebook, backlinks, wiki-links, substring search, JSON storage | [`core/`](https://github.com/hyperpolymath/nexia-list/tree/main/core) |
+| **λδ substrate** | **Built** — reader, value model, evaluator + Budget, hygienic macros, multimethods, prelude, and the notebook host seam (~4,050 LOC, ~76% of the core) | [`core/src/lambdadelta/`](https://github.com/hyperpolymath/nexia-list/tree/main/core/src/lambdadelta), `core/src/lambdadelta_host.rs` |
 | Browser bridge | wasm-bindgen (in progress) — the Rust core compiled to one WASM bundle | `core/src/wasm.rs` |
 | UI | ReScript 11, **hand-rolled** TEA (Model/Msg/Update/View) on `@rescript/react`, esbuild | [`ui/`](https://github.com/hyperpolymath/nexia-list/tree/main/ui) |
 | Tooling | **Deno 2 only** — tasks + esbuild; no npm/bun/yarn/pnpm | [`scripts/`](https://github.com/hyperpolymath/nexia-list/tree/main/scripts) |
@@ -31,7 +32,7 @@ The plan advances on three interlocking tracks that share the spine above (full 
 
 | Track | What it is | Anchored in |
 |---|---|---|
-| **A — λδ substrate & moldability** | The homoiconic Lisp base: multimethods on `:type`/`:op`, sandboxed budget, kernel/host seam, `.ld` packages as data | [ADR-0003](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0003-lambdadelta-lisp-substrate.md), [λδ spec](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/lambdadelta-spec.md) |
+| **A — λδ substrate & moldability** | The homoiconic Lisp base. **Substantially landed**: L0 kernel (reader, value model, evaluator, Budget) in [#35](https://github.com/hyperpolymath/nexia-list/pull/35), the notebook host seam in [#36](https://github.com/hyperpolymath/nexia-list/pull/36), hygienic macros + multimethods + prelude in [#43](https://github.com/hyperpolymath/nexia-list/pull/43). Outstanding: `.ld` packages as data, and surfacing L2+ through the UI's disclosure ladder | [ADR-0003](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0003-lambdadelta-lisp-substrate.md), [λδ spec](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/lambdadelta-spec.md) |
 | **B — Local intelligence + typed reasoning** | The settled FL×DT integration: recall (See-Also/BM25/Classify/dedup) + reasoning (typed edges + confidence propagation) | [FL×DT integration](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/flyinglogic-devonthink-integration.md) |
 | **C — UI/UX overhaul & cross-platform** | The TEA app grows to multi-pane workspace, palette, inspector, reasoning view, PWA — gated by progressive disclosure, never an ad-hoc `if` | mind-management plan §6 |
 

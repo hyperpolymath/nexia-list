@@ -51,19 +51,21 @@ Today's tools are strong at capture and link and effectively broken at **reason*
 | Core engine | Rust (serde, uuid, chrono) | Note/Notebook model, backlinks reverse index, substring search, JSON storage |
 | Browser bridge | wasm-bindgen (in progress) | Compiles the Rust core to a single WASM bundle that *is* the engine, client-side |
 | UI | ReScript 11 + hand-rolled TEA on `@rescript/react`, esbuild | Model / Msg / Update / View; type-safe functional UI |
-| Substrate (planned) | λδ (LambdaDelta) — homoiconic Lisp in the Rust core | Notebook-as-data; multimethods on `:type`/`:op`; opt-in, invisible by default |
+| Substrate (built) | λδ (LambdaDelta) — homoiconic Lisp in the Rust core | Notebook-as-data; multimethods on `:type`/`:op`; sandboxed Budget; opt-in, invisible by default. The interpreter, macros, multimethods, prelude, and notebook host all exist in `core/src/lambdadelta/` |
 | Desktop/mobile shell (optional) | [Gossamer](https://github.com/hyperpolymath/gossamer) — external sibling | Thin webview wrapping the identical web bundle; not built in this repo's CI |
 
 Tooling is **Deno 2 only** (no npm/bun/yarn/pnpm); persistence is human-readable JSON via IndexedDB + file download/upload.
 
 ## Project status
 
-Nexia-List is **~35% of the way to its MVP** (build resurrected; the WASM bridge is the current critical path). Per [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md): Rust core ~80% of MVP scope, ReScript UI ~60%, WASM bridge ~40%, Web/PWA ~30%, desktop shell blocked-external. Readiness grade **D**; see [READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md). Treat TOPOLOGY as the live dashboard.
+The Rust core is **5,344 LOC with 90 tests green** (81 unit + exchange/golden/invariants suites + doctests), of which the λδ substrate is ~4,050 LOC. The **WASM bridge is the critical path**: `core/src/wasm.rs` exists, but until it is wired the UI tests cannot run against the real engine. Readiness grade **D**; see [READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md).
+
+> **Note:** [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) still reports ~35% overall and does not yet mention λδ — it predates the three LambdaDelta merges (#35, #36, #43) and understates the core. Prefer the figures above until TOPOLOGY is refreshed.
 
 ## Relationship to other projects
 
 - **[Gossamer](https://github.com/hyperpolymath/gossamer)** — the optional desktop/mobile webview shell; a sibling checkout hosts the identical WASM bundle with no port. Not required, not in this repo's CI.
-- **LambdaDelta (λδ)** — the homoiconic Lisp substrate planned in-core; see [ADR-0003](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0003-lambdadelta-lisp-substrate.md) and the [spec](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/lambdadelta-spec.md).
+- **LambdaDelta (λδ)** — the homoiconic Lisp substrate, built in-core rather than vendored: see [ADR-0003](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0003-lambdadelta-lisp-substrate.md) and the [spec](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/lambdadelta-spec.md). It is the largest subsystem in the core.
 - **[Tinderbox](https://www.eastgate.com/Tinderbox/)** — the inspiration for spatial notes, agents, and prototypes (macOS-only, closed); Nexia-List carries the spirit cross-platform, open, and homoiconic.
 
 ## Governance
