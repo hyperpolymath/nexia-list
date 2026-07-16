@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Owner: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Project Wiki — Source
+:toc: preamble
+:icons: font
+
+This directory is the *source of truth* for the forge-hosted wiki (GitHub Wiki).
+Edit the pages here, never in the wiki UI — the UI copy is a published mirror
+and is overwritten on sync.
+
+The wiki is a *signpost*: each page orients its audience and links to the
+canonical docs (`README.adoc`, `ROADMAP.adoc`, `TOPOLOGY.md`, `docs/design/`,
+`docs/adr/`). It summarises and points; it does not duplicate them.
+
+== Pages (by audience)
+
+[cols="1,3",options="header"]
+|===
+| Page | For
+
+| `Home.md`        | Landing / signpost — routes each reader to their track.
+| `User.md`        | People *using* Nexia-List to manage their own mind.
+| `Developer.md`   | Contributors hacking on the Rust core, WASM bridge, ReScript UI, or λδ substrate.
+| `Maintainer.md`  | Roadmap, governance, CI, and machine-readable-state owners.
+| `Lay-Public.md`  | Non-technical readers (press, funders, the curious).
+| `Glossary.md`    | Definitions of project-specific terminology.
+|===
+
+This `README.adoc` is repo-only and is *not* published to the wiki mirror.
+
+== Publishing
+
+Pages are published to the forge wiki with the Justfile recipe:
+
+[source,console]
+----
+just wiki-sync dry   # preview what would change, push nothing
+just wiki-sync       # commit + push docs/wikis/*.md to the wiki remote
+----
+
+The default target is `https://github.com/hyperpolymath/nexia-list.wiki.git`;
+override it with `NEXIA_WIKI_REMOTE`. The sync clones the wiki remote into a
+temporary checkout, copies the pages over, and pushes a commit stamped with the
+code repo's short SHA — so a wiki page can always be traced to the source
+revision it was generated from.
+
+Only the `*.md` pages are mirrored; this `README.adoc` stays repo-only. If the
+recipe reports that the remote is not initialised, open the repo's Wiki tab and
+save any page once to create it, then re-run.

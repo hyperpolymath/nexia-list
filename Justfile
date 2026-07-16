@@ -33,6 +33,43 @@ check:
     deno lint
     cd core && cargo fmt --check && cargo clippy -- -D warnings
 
+# Publish docs/wikis/*.md to the GitHub wiki (docs/wikis/ is the source of truth)
+#   just wiki-sync dry    # preview what would change, push nothing
+#   just wiki-sync        # commit + push the wiki pages
+# Override the target with NEXIA_WIKI_REMOTE.
+wiki-sync mode="push":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="$(pwd)"
+    SRC="${ROOT}/docs/wikis"
+    REMOTE="${NEXIA_WIKI_REMOTE:-https://github.com/hyperpolymath/nexia-list.wiki.git}"
+    MODE="{{mode}}"
+    WORK="$(mktemp -d)"
+    trap 'rm -rf "${WORK}"' EXIT
+    echo "=== nexia-list wiki-sync (${MODE}) -> ${REMOTE} ==="
+    if ! git clone --quiet --depth 1 "${REMOTE}" "${WORK}"; then
+        echo "!! wiki remote not initialised yet." >&2
+        echo "   Visit the repo Wiki tab, save any page once to create it, then re-run." >&2
+        exit 1
+    fi
+    # Only the Markdown pages are mirrored; README.adoc stays repo-only.
+    cp "${SRC}"/*.md "${WORK}/"
+    cd "${WORK}"
+    git add -A
+    if git diff --cached --quiet; then
+        echo "wiki already up to date."
+        exit 0
+    fi
+    echo "--- pending wiki changes ---"
+    git status --short
+    if [ "${MODE}" = "dry" ]; then
+        echo "(dry run — nothing pushed)"
+        exit 0
+    fi
+    git commit --quiet -m "docs(wiki): sync from docs/wikis/ @ $(git -C "${ROOT}" rev-parse --short HEAD)"
+    git push --quiet origin HEAD
+    echo "OK: wiki synced."
+
 # Self-diagnostic — checks dependencies, permissions, paths
 doctor:
     @echo "Running diagnostics for nexia-list..."
