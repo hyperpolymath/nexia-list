@@ -18,13 +18,13 @@ This is the discipline Nexia already proved with `Notebook::backlinks` — a rev
 | Layer | Technology | Lives in |
 |---|---|---|
 | Core engine | Rust — Note/Notebook, backlinks, wiki-links, substring search, JSON storage | [`core/`](https://github.com/hyperpolymath/nexia-list/tree/main/core) |
-| **λδ substrate** | **Built** — reader, value model, evaluator + Budget, hygienic macros, multimethods, prelude, and the notebook host seam (~4,050 LOC, ~76% of the core) | [`core/src/lambdadelta/`](https://github.com/hyperpolymath/nexia-list/tree/main/core/src/lambdadelta), `core/src/lambdadelta_host.rs` |
-| Browser bridge | wasm-bindgen (in progress) — the Rust core compiled to one WASM bundle | `core/src/wasm.rs` |
+| **λδ substrate** | **Built** — reader, value model, evaluator + Budget, hygienic macros, multimethods, prelude, and the notebook host seam (~3,400 LOC excl. tests, ~64% of the core) | [`core/src/lambdadelta/`](https://github.com/hyperpolymath/nexia-list/tree/main/core/src/lambdadelta), `core/src/lambdadelta_host.rs` |
+| Browser bridge | wasm-bindgen (**wired**) — the Rust core compiled to one WASM bundle; 31 exports, 21 bound in ReScript | `core/src/wasm.rs`, [`ui/src/store/WasmStore.res`](https://github.com/hyperpolymath/nexia-list/blob/main/ui/src/store/WasmStore.res) |
 | UI | ReScript 11, **hand-rolled** TEA (Model/Msg/Update/View) on `@rescript/react`, esbuild | [`ui/`](https://github.com/hyperpolymath/nexia-list/tree/main/ui) |
 | Tooling | **Deno 2 only** — tasks + esbuild; no npm/bun/yarn/pnpm | [`scripts/`](https://github.com/hyperpolymath/nexia-list/tree/main/scripts) |
 | Persistence | Human-readable JSON via IndexedDB + file download/upload | browser |
 
-Status is tracked live in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) (~35% MVP; WASM bridge is the critical path). The desktop shell ([Gossamer](https://github.com/hyperpolymath/gossamer)) is external and not built in this repo's CI.
+Status is tracked live in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) (~65% MVP). The WASM bridge is wired and green in CI; the critical path is now the UI surface — 10 of the 31 WASM exports (including both λδ entry points) are still unbound in ReScript. The desktop shell ([Gossamer](https://github.com/hyperpolymath/gossamer)) is external and not built in this repo's CI.
 
 ## The three tracks
 
