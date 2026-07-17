@@ -56,7 +56,7 @@ All of it is local, opt-in, and computed *beside* your notes — delete the inte
 | See where the project stands | [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) |
 | Look up a term | [Glossary](Glossary) |
 
-Nexia-List is pre-release (v0.1, ~35% to MVP): you can create, edit, delete, link, and search notes today; the canvas supports pan/zoom and double-click create. Drag-and-drop, the recall/reasoning panels, and the desktop app are on the [roadmap](https://github.com/hyperpolymath/nexia-list/blob/main/ROADMAP.adoc), not shipped yet.
+Nexia-List is pre-release (v0.1, ~65% to MVP): you can create, edit, delete, link, and search notes today; the canvas supports pan/zoom, double-click create, and dragging notes, and it is keyboard-navigable. Your notes autosave locally and you can save or load them as a file. The recall and reasoning panels, the richer editor, and the desktop app are on the [roadmap](https://github.com/hyperpolymath/nexia-list/blob/main/ROADMAP.adoc), not shipped yet.
 
 ---
 

@@ -117,8 +117,8 @@ Download it and you have the file to keep, yourself, forever.
 |Note/Notebook model, backlinks reverse index, substring search, JSON storage
 
 |Browser Bridge
-|wasm-bindgen (in progress)
-|Compiles the Rust core to WASM so the browser runs the real engine
+|wasm-bindgen (wired)
+|Compiles the Rust core to WASM so the browser runs the real engine; loaded at boot and covered by a CI contract test
 
 |Tooling
 |Deno 2 tasks + esbuild
@@ -196,7 +196,7 @@ a parenthesis, while power users gain the full expressive reach of Lisp.
 [source]
 ----
 nexia-list/
-├── core/                  # Rust — note/notebook engine (~623 LOC, 12 unit tests)
+├── core/                  # Rust — note/notebook engine + λδ substrate (5,344 LOC, 90 tests)
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs         # Crate root

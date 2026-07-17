@@ -56,9 +56,10 @@ Machine-checkable governance is expressed as data, not prose:
 
 ## CI & readiness status
 
-- **Readiness grade: D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)). Builds from source; lockfiles present; Rust core's 12 unit tests pass. Path to C: product CI on every PR, UI/integration tests, WASM bridge smoke-tested.
-- **Overall ~35% MVP** ([TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md)); the WASM bridge is the critical path.
-- **CI today** is estate governance/scanning only (Hypatia, dogfood-gate, scorecard). Product CI (`rust-ci.yml`, `ui-ci.yml`) is landing in a parallel workstream — see [ROADMAP.adoc](https://github.com/hyperpolymath/nexia-list/blob/main/ROADMAP.adoc) sequencing. Keep every GitHub Action **SHA-pinned**; do not remove a workflow without recorded approval.
+- **Readiness grade: D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)). Builds from source; lockfiles present; the Rust core's **90 tests** pass. Path to C: a browser smoke test for the WASM bundle, coverage reporting, and a release workflow. Note the grade tracks *release engineering*, not feature completeness — it is not a verdict on how much is built.
+- **Overall ~65% MVP** ([TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md)); the critical path is the UI surface, not the WASM bridge (which is wired and green).
+- **CI today** runs *both* estate governance/scanning (Hypatia, dogfood-gate, scorecard) **and product CI**: `rust-ci.yml` (fmt, clippy `--all-targets --features wasm`, tests, wasm32 build) and `ui-ci.yml` (ReScript, wasm, Deno tests, bundle, lint), load-bearing since [#22](https://github.com/hyperpolymath/nexia-list/pull/22) and green on main. Keep every GitHub Action **SHA-pinned**; do not remove a workflow without recorded approval.
+- `just check` mirrors `rust-ci.yml` exactly — if it passes locally and CI still fails, that divergence is a bug worth fixing in the Justfile.
 - **Local gates**: `just check` (lint + rustfmt + clippy), `just test`, `just doctor`, `just assail` (panic-attacker, if installed).
 
 ## Release & packaging
