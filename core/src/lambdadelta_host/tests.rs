@@ -175,3 +175,36 @@ fn mutator_on_unknown_id_errors() {
     );
     assert!(matches!(r, Err(LdError::User(_))));
 }
+
+#[test]
+fn formula_binds_self_and_is_read_only() {
+    let (nb, _i) = setup();
+    let a = id_of(&nb, "Alpha");
+    assert!(a.is_some());
+    let Some(a) = a else { return };
+
+    // `self` is bound to the note; readers are in scope. The canonical L1 fx.
+    assert_eq!(
+        super::eval_formula(
+            nb.clone(),
+            &a,
+            "(count (words (content self)))",
+            Budget::new()
+        ),
+        Ok(Value::Int(4))
+    );
+    assert_eq!(
+        super::eval_formula(nb.clone(), &a, "(:title self)", Budget::new()),
+        Ok(Value::str("Alpha"))
+    );
+
+    // Mutators are deliberately absent — a formula cannot change the notebook.
+    let m = super::eval_formula(
+        nb.clone(),
+        &a,
+        "(set-title! (:id self) \"X\")",
+        Budget::new(),
+    );
+    assert!(matches!(m, Err(LdError::Unbound(_))));
+    assert_eq!(id_of(&nb, "Alpha"), Some(a)); // title unchanged
+}

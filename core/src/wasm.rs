@@ -225,6 +225,26 @@ impl WasmNotebook {
         result.map(|v| v.to_string()).map_err(err)
     }
 
+    /// Evaluate a **formula** against note `note_id`: a pure λδ expression with
+    /// `self` bound to that note and only reader builtins in scope (spec §5).
+    /// Read-only — the notebook is never mutated. Returns the printed result.
+    /// This is the L1 "fx field" entrypoint.
+    #[wasm_bindgen(js_name = evalFormula)]
+    pub fn eval_formula(&mut self, note_id: &str, src: &str) -> Result<String, JsValue> {
+        use crate::lambdadelta::Budget;
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let id = parse_id(note_id)?;
+        let shared = Rc::new(RefCell::new(std::mem::take(&mut self.inner)));
+        let result = crate::lambdadelta_host::eval_formula(shared.clone(), &id, src, Budget::new());
+        match Rc::try_unwrap(shared) {
+            Ok(cell) => self.inner = cell.into_inner(),
+            Err(still_shared) => self.inner = still_shared.borrow().clone(),
+        }
+        result.map(|v| v.to_string()).map_err(err)
+    }
+
     /// Export every note as a Markdown file: `[{ name, content }]`.
     pub fn export_markdown(&self) -> Result<JsValue, JsValue> {
         let files: Vec<MarkdownFileView> = crate::exchange::to_markdown(&self.inner)

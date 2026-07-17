@@ -23,7 +23,7 @@ use std::rc::Rc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::lambdadelta::{Interp, LdError, LdResult, Value};
+use crate::lambdadelta::{Budget, Interp, LdError, LdResult, Value};
 use crate::note::Point2D;
 use crate::notebook::Notebook;
 
@@ -46,32 +46,58 @@ use crate::notebook::Notebook;
 /// assert_eq!(out, Value::Int(1));
 /// ```
 pub fn register(interp: &mut Interp, nb: Rc<RefCell<Notebook>>) {
-    // Readers (pure).
-    reader(interp, &nb, "notes", 0, Some(0), bi_notes);
-    reader(interp, &nb, "note", 1, Some(1), bi_note);
-    reader(interp, &nb, "title", 1, Some(1), bi_title);
-    reader(interp, &nb, "content", 1, Some(1), bi_content);
-    reader(interp, &nb, "attrs", 1, Some(1), bi_attrs);
-    reader(interp, &nb, "links", 1, Some(1), bi_links);
-    reader(interp, &nb, "backlinks", 1, Some(1), bi_backlinks);
-    reader(interp, &nb, "position", 1, Some(1), bi_position);
-    reader(interp, &nb, "attr", 2, Some(2), bi_attr);
-    reader(interp, &nb, "search", 1, Some(1), bi_search);
-    reader(interp, &nb, "resolve-title", 1, Some(1), bi_resolve_title);
-    reader(interp, &nb, "agents", 0, Some(0), bi_agents);
-    reader(interp, &nb, "run-agent", 1, Some(1), bi_run_agent);
+    register_readers(interp, &nb);
+    register_mutators(interp, &nb);
+}
 
-    // Mutators (effects, `!`-suffixed).
-    mutator(interp, &nb, "create-note!", 1, Some(3), bi_create_note);
-    mutator(interp, &nb, "set-title!", 2, Some(2), bi_set_title);
-    mutator(interp, &nb, "set-content!", 2, Some(2), bi_set_content);
-    mutator(interp, &nb, "set-attr!", 3, Some(3), bi_set_attr);
-    mutator(interp, &nb, "remove-attr!", 2, Some(2), bi_remove_attr);
-    mutator(interp, &nb, "move-note!", 3, Some(3), bi_move_note);
-    mutator(interp, &nb, "resize-note!", 3, Some(3), bi_resize_note);
-    mutator(interp, &nb, "link!", 2, Some(2), bi_link);
-    mutator(interp, &nb, "unlink!", 2, Some(2), bi_unlink);
-    mutator(interp, &nb, "delete-note!", 1, Some(1), bi_delete_note);
+/// Register only the pure reader builtins — the surface a **formula** or
+/// **agent-predicate** context is allowed (spec §5).
+pub fn register_readers(interp: &mut Interp, nb: &Rc<RefCell<Notebook>>) {
+    reader(interp, nb, "notes", 0, Some(0), bi_notes);
+    reader(interp, nb, "note", 1, Some(1), bi_note);
+    reader(interp, nb, "title", 1, Some(1), bi_title);
+    reader(interp, nb, "content", 1, Some(1), bi_content);
+    reader(interp, nb, "attrs", 1, Some(1), bi_attrs);
+    reader(interp, nb, "links", 1, Some(1), bi_links);
+    reader(interp, nb, "backlinks", 1, Some(1), bi_backlinks);
+    reader(interp, nb, "position", 1, Some(1), bi_position);
+    reader(interp, nb, "attr", 2, Some(2), bi_attr);
+    reader(interp, nb, "search", 1, Some(1), bi_search);
+    reader(interp, nb, "resolve-title", 1, Some(1), bi_resolve_title);
+    reader(interp, nb, "agents", 0, Some(0), bi_agents);
+    reader(interp, nb, "run-agent", 1, Some(1), bi_run_agent);
+}
+
+/// Register the `!`-suffixed mutators — permitted only in **action** contexts
+/// (on-create / agent-action / stamp; spec §5).
+pub fn register_mutators(interp: &mut Interp, nb: &Rc<RefCell<Notebook>>) {
+    mutator(interp, nb, "create-note!", 1, Some(3), bi_create_note);
+    mutator(interp, nb, "set-title!", 2, Some(2), bi_set_title);
+    mutator(interp, nb, "set-content!", 2, Some(2), bi_set_content);
+    mutator(interp, nb, "set-attr!", 3, Some(3), bi_set_attr);
+    mutator(interp, nb, "remove-attr!", 2, Some(2), bi_remove_attr);
+    mutator(interp, nb, "move-note!", 3, Some(3), bi_move_note);
+    mutator(interp, nb, "resize-note!", 3, Some(3), bi_resize_note);
+    mutator(interp, nb, "link!", 2, Some(2), bi_link);
+    mutator(interp, nb, "unlink!", 2, Some(2), bi_unlink);
+    mutator(interp, nb, "delete-note!", 1, Some(1), bi_delete_note);
+}
+
+/// Evaluate a **formula** (spec §5): a pure expression with `self` bound to a
+/// note's snapshot map and only the *reader* builtins in scope — mutators are
+/// deliberately absent, so a formula can never change the notebook. This is the
+/// L1 surface: `(count (words (content self)))`, `(= (attr self :status) "todo")`.
+pub fn eval_formula(
+    nb: Rc<RefCell<Notebook>>,
+    self_id: &Uuid,
+    src: &str,
+    budget: Budget,
+) -> LdResult<Value> {
+    let mut interp = Interp::new();
+    register_readers(&mut interp, &nb);
+    let self_val = note_to_value(&nb.borrow(), self_id).unwrap_or(Value::Nil);
+    interp.global.set(Rc::from("self"), self_val);
+    interp.eval_str(src, budget)
 }
 
 type ReadFn = fn(&Notebook, &[Value]) -> LdResult<Value>;
