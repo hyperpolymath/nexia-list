@@ -59,7 +59,7 @@ deno task dev         # dev server on http://localhost:5173
 [source]
 ----
 nexia-list/
-├── core/                 # Rust core engine (12 passing unit tests)
+├── core/                 # Rust core engine + λδ substrate (90 passing tests)
 ├── ui/                   # ReScript TEA-style UI
 │   └── src/bindings/     # DOM bindings
 ├── scripts/              # Deno build/dev scripts (esbuild)

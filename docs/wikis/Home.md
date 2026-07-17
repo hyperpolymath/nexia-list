@@ -49,7 +49,7 @@ Today's tools are strong at capture and link and effectively broken at **reason*
 | Layer | Technology | Role |
 |---|---|---|
 | Core engine | Rust (serde, uuid, chrono) | Note/Notebook model, backlinks reverse index, substring search, JSON storage |
-| Browser bridge | wasm-bindgen (in progress) | Compiles the Rust core to a single WASM bundle that *is* the engine, client-side |
+| Browser bridge | wasm-bindgen (wired) | Compiles the Rust core to a single WASM bundle that *is* the engine, client-side; loaded at boot and covered by a CI contract test |
 | UI | ReScript 11 + hand-rolled TEA on `@rescript/react`, esbuild | Model / Msg / Update / View; type-safe functional UI |
 | Substrate (built) | λδ (LambdaDelta) — homoiconic Lisp in the Rust core | Notebook-as-data; multimethods on `:type`/`:op`; sandboxed Budget; opt-in, invisible by default. The interpreter, macros, multimethods, prelude, and notebook host all exist in `core/src/lambdadelta/` |
 | Desktop/mobile shell (optional) | [Gossamer](https://github.com/hyperpolymath/gossamer) — external sibling | Thin webview wrapping the identical web bundle; not built in this repo's CI |
@@ -58,9 +58,9 @@ Tooling is **Deno 2 only** (no npm/bun/yarn/pnpm); persistence is human-readable
 
 ## Project status
 
-The Rust core is **5,344 LOC with 90 tests green** (81 unit + exchange/golden/invariants suites + doctests), of which the λδ substrate is ~4,050 LOC. The **WASM bridge is the critical path**: `core/src/wasm.rs` exists, but until it is wired the UI tests cannot run against the real engine. Readiness grade **D**; see [READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md).
+The Rust core is **5,344 LOC with 90 tests green** (81 unit + exchange/golden/invariants suites + doctests), of which the λδ substrate is ~3,400 LOC — about **64% of the core**, its largest subsystem. The **WASM bridge is wired and exercised**: `Main.res` loads the WASM core at boot, `WasmStore` binds 21 of its 31 exports, and CI builds the bundle and runs the contract tests against the real engine on every PR.
 
-> **Note:** [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) still reports ~35% overall and does not yet mention λδ — it predates the three LambdaDelta merges (#35, #36, #43) and understates the core. Prefer the figures above until TOPOLOGY is refreshed.
+The critical path is now the **UI surface**, not the bridge: λδ is compiled into the WASM and reachable from JavaScript, but nothing in the UI calls it yet. Binding those dormant methods and giving λδ a door is the next step. Overall ~65%; readiness grade **D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)) — the grade tracks release engineering (smoke tests, coverage), not feature completeness. Full dashboard in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md).
 
 ## Relationship to other projects
 
