@@ -18,6 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
   # security-events: write serves two purposes (write implies read):
   #   1. read — lets the built-in GITHUB_TOKEN query this repo's own
