@@ -50,17 +50,17 @@ Today's tools are strong at capture and link and effectively broken at **reason*
 |---|---|---|
 | Core engine | Rust (serde, uuid, chrono) | Note/Notebook model, backlinks reverse index, substring search, JSON storage |
 | Browser bridge | wasm-bindgen (wired) | Compiles the Rust core to a single WASM bundle that *is* the engine, client-side; loaded at boot and covered by a CI contract test |
-| UI | ReScript 11 + hand-rolled TEA on `@rescript/react`, esbuild | Model / Msg / Update / View; type-safe functional UI |
+| UI | ReScript 11 + hand-rolled TEA on `@rescript/react`, Bun bundler | Model / Msg / Update / View; type-safe functional UI |
 | Substrate (built) | λδ (LambdaDelta) — homoiconic Lisp in the Rust core | Notebook-as-data; multimethods on `:type`/`:op`; sandboxed Budget; opt-in, invisible by default. The interpreter, macros, multimethods, prelude, and notebook host all exist in `core/src/lambdadelta/` |
 | Desktop/mobile shell (optional) | [Gossamer](https://github.com/hyperpolymath/gossamer) — external sibling | Thin webview wrapping the identical web bundle; not built in this repo's CI |
 
-Tooling is **Deno 2 only** (no npm/bun/yarn/pnpm); persistence is human-readable JSON via IndexedDB + file download/upload.
+Tooling is **Bun only** (no npm/Deno/Yarn/pnpm); persistence is human-readable JSON via IndexedDB + file download/upload.
 
 ## Project status
 
-The Rust core is **5,344 LOC with 90 tests green** (81 unit + exchange/golden/invariants suites + doctests), of which the λδ substrate is ~3,400 LOC — about **64% of the core**, its largest subsystem. The **WASM bridge is wired and exercised**: `Main.res` loads the WASM core at boot, `WasmStore` binds 21 of its 31 exports, and CI builds the bundle and runs the contract tests against the real engine on every PR.
+The Rust core is **5,344 LOC with 91 tests green** (82 unit + exchange/golden/invariants suites + doctests), of which the λδ substrate is ~3,400 LOC — about **64% of the core**, its largest subsystem. The **WASM bridge is wired and exercised**: `Main.res` loads the WASM core at boot, `WasmStore` binds all 31 exports, and the test suite builds the bundle and runs facade contracts against the real engine.
 
-The critical path is now the **UI surface**, not the bridge: λδ is compiled into the WASM and reachable from JavaScript, but nothing in the UI calls it yet. Binding those dormant methods and giving λδ a door is the next step. Overall ~65%; readiness grade **D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)) — the grade tracks release engineering (smoke tests, coverage), not feature completeness. Full dashboard in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md).
+The critical path is now the **UI surface**, not the bridge: λδ is compiled into the WASM, fully bound in ReScript, and has its first progressively disclosed UI door—a collapsed, read-only computed-field panel scoped to the selected note. L2 actions and the L3 REPL remain. Overall ~65%; readiness grade **D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)) — the grade tracks release engineering (smoke tests, coverage), not feature completeness. Full dashboard in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md).
 
 ## Relationship to other projects
 

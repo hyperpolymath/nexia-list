@@ -219,7 +219,7 @@ and refreshContext = (prev, next) => {
 ```
 `refreshReasoning` is deliberately **not** in the hot path — it runs on entering `PReasoning` and on `AddEdge`/`RemoveEdge`/`SetConfidence`, debounced like `Persist.scheduleAutosave`. The existing `SetViewMode(mode)` becomes sugar over `SetPaneContent(model.focusedPane, …)` so the current Toolbar keeps working verbatim.
 
-`WasmStore.res` seam additions (each maps to a `wasm.rs` method): bind the already-exported-but-unbound `set_attribute`, `run_query`, `backlinks`, `evalLambdadelta`; add the new FL×DT exports `render_markdown`, `see_also`, `duplicates`, `classify`, `add_edge`, `remove_edge`, `reason`, `set_prototype`. All of `reason`/`see_also`/`duplicates`/`classify` are `#[serde(skip)]`-backed and rebuilt on load; `reasonResult` positions come from `layout.rs`, never `Note.position`.
+`WasmStore.res` seam additions (each maps to a `wasm.rs` method): the complete existing surface—including `set_attribute`, `run_query`, `backlinks`, and all λδ entry points—is now bound; add the new FL×DT exports `render_markdown`, `see_also`, `duplicates`, `classify`, `add_edge`, `remove_edge`, `reason`, `set_prototype`. All of `reason`/`see_also`/`duplicates`/`classify` are `#[serde(skip)]`-backed and rebuilt on load; `reasonResult` positions come from `layout.rs`, never `Note.position`.
 
 ### Surface-by-surface
 
@@ -250,7 +250,7 @@ One sequence merges the settled FL×DT PR order with the UI/product work, crossw
 
 **Recommended first few PRs (in order):**
 1. **Headless `index.rs`** — tokenizer + inverted index + incremental reindex hooks + `rebuild_indices`, property-tested against golden fixtures. Zero UI, zero on-disk change. *(the settled FIRST PR)*
-2. **Bind the four dormant `wasm.rs` methods** in `WasmStore` + the `refreshContext` wrapper change + `powerLevel`/`whenPower`/`whenNonEmpty` scaffolding. No new core.
+2. **Bind the dormant `wasm.rs` methods** in `WasmStore` — **done**; follow with the `refreshContext` wrapper change + `powerLevel`/`whenPower`/`whenNonEmpty` scaffolding. No new core.
 3. **Inspector + Context/Backlinks + Quick-capture/Inbox + theming + PWA manifest** — all no-code L0/L1 surfaces over data that already exists.
 4. **`see_also`/`duplicates`/`classify` exports + Context panels** — the first visible payoff of PR 1's index.
 5. **`render_markdown` + `Editor` (render / `[[ ]]` autocomplete / slash)** — the editor leap, still L0-safe in `ESource`.
@@ -270,7 +270,7 @@ One sequence merges the settled FL×DT PR order with the UI/product work, crossw
 
 **Product & UI non-goals (added):**
 - **No sync, ever** — explicit non-goal; the file is the sync boundary and it is yours. No real-time collaboration, no accounts, no subscription, no lock-in.
-- **No npm/bun/yarn/pnpm** — Deno 2 is the only JS toolchain; markdown is Rust `pulldown-cmark` → typed AST → ReScript-to-React mapping; spinners, minimap, reasoning canvas are hand-rolled SVG.
+- **Bun only** — no npm/Deno/Yarn/pnpm; markdown is Rust `pulldown-cmark` → typed AST → ReScript-to-React mapping; spinners, minimap, reasoning canvas are hand-rolled SVG.
 - **No separate desktop/mobile codebase** — one WASM bundle; the Gossamer shell (external sibling checkout, outside this repo's CI) hosts the identical bundle, reimplementing nothing. Desktop and mobile are distribution choices, not products.
 - **No parenthesis before a door** — no L2+ surface visible at `powerLevel == 0`; no L1 panel that renders an empty header.
 - **No feature that makes a note harder to write, read, or take with you** — power serves the letter and never fences it in; the note model stays untouched by every advanced feature.

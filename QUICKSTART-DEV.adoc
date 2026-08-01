@@ -6,9 +6,8 @@
 
 == Tech Stack
 
-* **Deno 2** — the only JS toolchain (package management via `deno install`,
-  tasks, dev server; no npm/bun/yarn/pnpm CLIs)
-* **ReScript 11** — TEA-style UI on `@rescript/react`, bundled with esbuild
+* **Bun 1.3+** — the only JS toolchain (packages, tasks, tests, bundler, dev server)
+* **ReScript 11** — TEA-style UI on `@rescript/react`, bundled with Bun
 * **Rust stable** — core engine (notes, backlinks, search, JSON storage),
   compiled to WASM via wasm-bindgen for the browser
 * Optional: **Gossamer** desktop shell (external sibling checkout of
@@ -29,29 +28,29 @@ guix shell
 ----
 git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
-just setup    # deno task setup + rustup wasm32 target
+just setup    # bun install + rustup wasm32 target
 ----
 
 == Build
 
 [source,bash]
 ----
-deno task build       # ReScript compile + esbuild web bundle
-deno task build:wasm  # Rust core → WASM for the browser
+bun run build       # ReScript compile + Bun web bundle
+bun run build:wasm  # Rust core → WASM for the browser
 ----
 
 == Test
 
 [source,bash]
 ----
-deno task test        # Rust core (cargo test) + UI (deno test)
+bun run test        # Rust core (cargo test) + UI (bun test)
 ----
 
 == Run
 
 [source,bash]
 ----
-deno task dev         # dev server on http://localhost:5173
+bun run dev         # dev server on http://localhost:5173
 ----
 
 == Project Structure
@@ -59,17 +58,18 @@ deno task dev         # dev server on http://localhost:5173
 [source]
 ----
 nexia-list/
-├── core/                 # Rust core engine + λδ substrate (90 passing tests)
+├── core/                 # Rust core engine + λδ substrate (91 passing tests)
 ├── ui/                   # ReScript TEA-style UI
 │   └── src/bindings/     # DOM bindings
-├── scripts/              # Deno build/dev scripts (esbuild)
+├── scripts/              # Bun build/dev scripts
 ├── web/                  # Browser entry + bundle output (dist/)
 ├── desktop/              # OPTIONAL Gossamer shell (external dependency)
 ├── docs/adr/             # Architecture decision records
 ├── tests/                # Cross-cutting tests
 ├── .machine_readable/    # Checkpoint files (STATE, META, ECOSYSTEM) + contractiles
-├── Justfile              # Task runner recipes (delegate to deno tasks)
-├── deno.json             # Deno tasks and import map
+├── Justfile              # Task runner recipes (delegate to Bun tasks)
+├── package.json          # Bun tasks and dependencies
+├── bun.lock              # Exact JavaScript dependency graph
 ├── guix.scm              # Guix environment
 └── 0-AI-MANIFEST.a2ml    # AI agent entry point
 ----
@@ -83,7 +83,7 @@ just build          # Build the project
 just build-wasm     # Build the WASM core
 just test           # Run tests
 just run            # Start the dev server
-just check          # Deno lint + rustfmt --check + clippy
+just check          # Biome lint + rustfmt --check + clippy
 just doctor         # Self-diagnostic
 just assail         # Security scan via panic-attacker (if installed)
 just tour           # Guided tour of the codebase
@@ -95,7 +95,7 @@ just tour           # Guided tour of the codebase
 ----
 just check          # Lint and static checks
 just test           # All tests pass
-deno task fmt       # Format (deno fmt + cargo fmt)
+bun run fmt         # Format (Biome + cargo fmt)
 ----
 
 == Contractile Invariants
@@ -103,7 +103,7 @@ deno task fmt       # Format (deno fmt + cargo fmt)
 Read `.machine_readable/MUST.contractile` before making changes.
 Key invariants that must never be violated:
 
-* **Deno only** — no npm/bun/yarn/pnpm dependencies or CLIs
+* **Bun only** — no npm/deno/yarn/pnpm CLIs or lockfiles
 * **No new TypeScript, Python, or Go files**
 * **SPDX-License-Identifier header on every source file** (MPL-2.0 for code,
   CC-BY-SA-4.0 for docs); never remove or modify LICENSE

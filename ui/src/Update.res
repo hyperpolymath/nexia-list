@@ -130,6 +130,14 @@ and step = (model: model, msg: msg): model => {
 
   | StopEditingNote => {...model, editingNote: None}
 
+  | SetFormulaSource(source) => {...model, formulaSource: source, formulaResult: None}
+
+  | EvaluateFormula(id) =>
+    switch WasmStore.evalFormula(id, model.formulaSource) {
+    | Ok(value) => {...model, formulaResult: Some(value), error: None}
+    | Error(message) => {...model, formulaResult: None, error: Some(message)}
+    }
+
   // Note positioning
   | MoveNote(id, position) => patchNote(model, WasmStore.moveNote(id, position.x, position.y))
 
@@ -153,7 +161,7 @@ and step = (model: model, msg: msg): model => {
     }
 
   // Selection
-  | SelectNote(id) => {...model, selection: SingleNote(id)}
+  | SelectNote(id) => {...model, selection: SingleNote(id), formulaResult: None}
 
   | AddToSelection(id) =>
     switch model.selection {

@@ -41,6 +41,12 @@ let runAll = () => {
     "content updated",
   )
 
+  // L1 formula panel evaluates read-only λδ with self bound to the note.
+  let model = Update.update(model, Msg.SetFormulaSource("(:title self)"))
+  let model = Update.update(model, Msg.EvaluateFormula(alpha))
+  check(model.formulaResult == Some("\"Alpha\""), "formula evaluates against selected note")
+  check((Model.getNote(model, alpha)->Option.getExn).title == "Alpha", "formula is read-only")
+
   // Second note, then link
   let model = Update.update(model, Msg.CreateNote)
   let beta = selectedId(model, "note selected after second create")

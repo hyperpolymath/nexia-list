@@ -58,7 +58,7 @@
     ("Web-first: the browser is the primary target; desktop (Gossamer) is an optional external shell over the same bundle")
     ("The Rust core is the single source of truth for note/notebook semantics — the UI must not fork the data model")
     ("Rust core is compiled to WASM (wasm-bindgen) so the browser runs the real engine")
-    ("Deno is the only JS runtime/package manager — no npm/bun/yarn/pnpm CLIs")
+    ("Bun is the only JS runtime/package manager — no npm/deno/yarn/pnpm CLIs")
     ("Local-first: no core feature may require network access")
     ("User data stored in human-readable JSON")
   )

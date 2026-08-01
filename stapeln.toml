@@ -28,13 +28,13 @@ verify = true
 [layers.toolchain]
 description = "Build tools and dependencies"
 extends = "base"
-packages = ["deno"]
+packages = ["bun"]
 cache = true
 
 [layers.build]
 description = "nexia-list build"
 extends = "toolchain"
-commands = ["deno cache src/main.ts"]
+commands = ["bun install --frozen-lockfile", "bun run build"]
 
 [layers.runtime]
 description = "Minimal runtime"
@@ -43,7 +43,7 @@ packages = ["ca-certificates", "curl"]
 copy-from = [
     { layer = "build", src = "/app/", dst = "/app/" },
 ]
-entrypoint = ["/app/bin/deno-run"]
+entrypoint = ["/usr/bin/bun", "run", "dev"]
 user = "nonroot"
 
 # ── Security ───────────────────────────────────────────────────

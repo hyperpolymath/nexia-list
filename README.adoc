@@ -79,7 +79,7 @@ Download it and you have the file to keep, yourself, forever.
 ┌──────────────────────────────────────────────────────────┐
 │              ReScript UI (TEA-style)                     │
 │   Model / Msg / Update / View — hand-rolled TEA loop     │
-│   on @rescript/react; bundled by esbuild → web/dist/     │
+│   on @rescript/react; bundled by Bun → web/dist/         │
 └─────────────────────────┬────────────────────────────────┘
                           │
                           ▼
@@ -121,8 +121,8 @@ Download it and you have the file to keep, yourself, forever.
 |Compiles the Rust core to WASM so the browser runs the real engine; loaded at boot and covered by a CI contract test
 
 |Tooling
-|Deno 2 tasks + esbuild
-|Package management, dev server, bundling — no npm/bun/yarn/pnpm CLIs
+|Bun tasks + native bundler
+|Package management, tests, dev server, and browser bundling
 
 |Storage
 |JSON via IndexedDB + file download/upload
@@ -160,14 +160,16 @@ These appear in older docs as if they existed — they do not, yet:
 * A dedicated TEA library and URL router (the current TEA loop is hand-rolled;
   `rescript-tea` and `cadre-tea-router` were removed as unused/unresolvable)
 
-=== LambdaDelta: the programmable substrate (planned)
+=== LambdaDelta: the programmable substrate
 
 The larger direction — treating the notebook as live, homoiconic data that a
 real Lisp (LambdaDelta, λδ) can read, query, transform, and extend — is
 recorded in link:docs/adr/0003-lambdadelta-lisp-substrate.md[ADR-0003]. The
 guiding constraint is that this power is opt-in and *invisible by default*:
 Nexia-List stays a Tinderbox-like tool you can use for life without ever seeing
-a parenthesis, while power users gain the full expressive reach of Lisp.
+a parenthesis, while power users gain the full expressive reach of Lisp. The L0
+kernel, notebook host, macros, multimethods, and prelude are built; the first UI
+door is a collapsed, read-only computed-field panel scoped to the current note.
 
 == Features
 
@@ -196,7 +198,7 @@ a parenthesis, while power users gain the full expressive reach of Lisp.
 [source]
 ----
 nexia-list/
-├── core/                  # Rust — note/notebook engine + λδ substrate (5,344 LOC, 90 tests)
+├── core/                  # Rust — note/notebook engine + λδ substrate (5,344 LOC, 91 tests)
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs         # Crate root
@@ -215,7 +217,7 @@ nexia-list/
 │       ├── View.res       # Rendering (list, editor, canvas)
 │       └── bindings/
 │           └── DomBindings.res
-├── scripts/               # Deno build/dev scripts (esbuild bundling, dev server)
+├── scripts/               # Bun build/dev scripts (native bundling, dev server)
 ├── web/                   # Browser entry (index.html, styles) + bundle output (dist/)
 ├── desktop/               # OPTIONAL Gossamer shell — requires external sibling
 │                          # checkout of hyperpolymath/gossamer; not built in CI
@@ -227,7 +229,7 @@ nexia-list/
 
 === Prerequisites
 
-* https://deno.land/[Deno] 2.x (only JS toolchain used — no npm/bun/yarn/pnpm)
+* https://bun.sh/[Bun] 1.3+ (the estate-standard JS toolchain)
 * https://www.rust-lang.org/tools/install[Rust] stable
   (plus the `wasm32-unknown-unknown` target for WASM builds:
   `rustup target add wasm32-unknown-unknown`)
@@ -243,19 +245,19 @@ git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
 
 # Install dependencies
-deno task setup
+bun install --frozen-lockfile
 
 # Run development server (http://localhost:5173)
-deno task dev
+bun run dev
 
 # Build for production (ReScript + web bundle)
-deno task build
+bun run build
 
 # Build the WASM core
-deno task build:wasm
+bun run build:wasm
 
 # Run tests (Rust core + UI)
-deno task test
+bun run test
 ----
 
 == Contributing

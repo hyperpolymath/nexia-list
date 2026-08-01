@@ -9,10 +9,12 @@
 > the **note-as-value model**, the **builtin vocabulary**, and the **kernel/host
 > seam** that makes an SDK/plugin ecosystem cheap.
 
-**Status:** v0.1 — the load-bearing decisions are **confirmed** (see §9).
-Package format, capability model, and the dev wizard are tracked separately in
-**[issue #33](https://github.com/hyperpolymath/nexia-list/issues/33)**. No code
-yet; this is the target Phase L0 builds against.
+**Status:** v0.1 — the load-bearing decisions are **confirmed** and the L0
+kernel/host implementation has landed (see §9). Package format, capability
+model, and the dev wizard are tracked separately in
+**[issue #33](https://github.com/hyperpolymath/nexia-list/issues/33)**. The
+current assurance boundary is recorded in
+**[Proof Baseline 0](../verification/proof-baseline-0.md)**.
 
 ---
 
@@ -234,14 +236,17 @@ The existing L0 agent DSL (`attr:status=todo`) compiles to an **Agent predicate*
 ## 6. Sandbox contract
 
 - **Deterministic & pure-by-default:** no clock, no randomness, no network, no
-  file/DOM access. The only effects are the `!` notebook mutators, in action
-  contexts, subject to granted capabilities (§7).
-- **Bounded:** every evaluation runs under a *budget* — a reduction-step count,
-  a wall-clock ceiling, and a recursion-depth limit. Exceeding it aborts cleanly
-  with an error value; it never hangs the tab. (Heavy jobs → Web Worker later.)
+  file/DOM access. The only implemented effects are the `!` notebook mutators.
+  Formula evaluation omits them by construction; capability enforcement for
+  broader action/plugin contexts is deferred (§7).
+- **Bounded:** every evaluation runs under a reduction-step count and a
+  recursion-depth limit. Exceeding either aborts cleanly with an error value.
+  A wall-clock ceiling is not implemented; native builtins therefore remain
+  inside the trusted termination boundary. (Heavy jobs → Web Worker later.)
 - **Errors are values / diagnostics**, never panics: unbound symbol, arity
-  mismatch, type error, capability-denied, budget-exceeded — each a structured
-  error the UI can show against the offending form.
+  mismatch, type error, and budget exhaustion are structured errors the UI can
+  show against the offending form. Capability-denied errors arrive with the
+  deferred capability model.
 
 ---
 
@@ -254,22 +259,25 @@ The single discipline that makes an SDK, embedding, and the plugin ecosystem
   hygienic macros · multimethods · budget. **Knows nothing about notes.** A
   self-contained language that could become its own crate.
 - **Host bindings** — the notebook builtins (`notes`, `set-attr!`, `render`, …)
-  are *registered into* the kernel through a host-function interface, each
-  carrying the **capability** it requires. Nexia-List is simply the *first host*.
+  are *registered into* the kernel through a host-function interface. The
+  current formula entry point registers only readers; native registrations do
+  **not yet carry capability metadata**. Nexia-List is the first host.
 
 Consequences that fall out for free:
 - **Embedders** depend on the kernel + `register_builtin`; λδ becomes an
   ecosystem beyond Nexia-List.
-- **Plugin authors** ship a package (`.ld` source + a manifest of entry points
-  and *requested capabilities*); the provisioner/configurator (#33) grant and
-  enforce them; the harness runs them against a fixture notebook under the
-  budget.
+- **Plugin authors (planned)** ship a package (`.ld` source + a manifest of
+  entry points and *requested capabilities*); the provisioner/configurator
+  (#33) will grant and enforce them, and the harness will run them against a
+  fixture notebook under the budget.
 - **Sugar is free**: almost all developer sweetness (`defcommand`, `defview`,
   `deftemplate`, threading, `match`, destructuring) is hygienic macros + reader
   tags *around* the kernel — the kernel stays tiny and stable.
 
 The capability model and package/manifest format are specified in **#33**; this
-section fixes only that the seam exists and where it sits.
+section fixes only that the seam exists and where it sits. Capability
+non-escalation remains an engineering-blocked proof obligation until authority
+is represented and checked at dispatch.
 
 ---
 

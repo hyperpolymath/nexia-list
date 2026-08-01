@@ -12,12 +12,8 @@ go = "latest"
 zig = "latest"
 java = "latest"
 bun = "latest"
-deno = "latest"   # was `denojs` — not a registry name
 
 # Package managers / task runner
-npm = "latest"
-yarn = "latest"
-pnpm = "latest"
 just = "latest"   # the estate's task runner (Justfile)
 
 # Formatting & linting

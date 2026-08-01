@@ -208,6 +208,34 @@ module NoteEditor = {
         <span> {React.string(`Modified: ${note.modifiedAt}`)} </span>
       </div>
 
+      <details className="formula-panel">
+        <summary> {React.string("Computed field (λδ)")} </summary>
+        <p className="formula-help">
+          {React.string("Advanced · read-only · self is this note")}
+        </p>
+        <textarea
+          className="formula-source"
+          ariaLabel="LambdaDelta formula"
+          spellCheck={false}
+          value={model.formulaSource}
+          onChange={e => dispatch(SetFormulaSource(ReactEvent.Form.target(e)["value"]))}
+        />
+        <div className="formula-actions">
+          <button
+            type_="button"
+            className="btn-primary"
+            disabled={String.trim(model.formulaSource) == ""}
+            onClick={_ => dispatch(EvaluateFormula(note.id))}>
+            {React.string("Evaluate")}
+          </button>
+          {switch model.formulaResult {
+          | Some(value) =>
+            <output className="formula-result" ariaLive=#"polite"> {React.string(value)} </output>
+          | None => React.null
+          }}
+        </div>
+      </details>
+
       <div className="note-links">
         <h4> {React.string("Links")} </h4>
         {note.links->Array.length > 0

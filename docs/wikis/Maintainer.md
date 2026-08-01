@@ -24,7 +24,7 @@ The [ROADMAP.adoc](https://github.com/hyperpolymath/nexia-list/blob/main/ROADMAP
 
 | Phase | Ships (summary) | Level |
 |---|---|---|
-| **P0 — Foundations** | Bind dormant core methods; Inspector, Context/Backlinks, theming, PWA manifest, quick-capture/Inbox. **First PR = headless `index.rs`** (zero UI, zero on-disk change) | L0/L1 |
+| **P0 — Foundations** | Core-method bindings complete; next: Inspector, Context/Backlinks, theming, PWA manifest, quick-capture/Inbox. **First indexing PR = headless `index.rs`** (zero UI, zero on-disk change) | L0/L1 |
 | **P1 — Recall + real editor** | See-Also / Duplicates / tag-suggest panels; markdown render + `[[ ]]` autocomplete | L1 |
 | **P2 — Composer** | Command palette; multi-pane; outline/timeline/browser; upgraded canvas (`edge.rs`) | L2 |
 | **P3 — Reasoning** | ReasoningView with confidence spinners and dashed back-edges (`reason.rs`, `layout.rs`); Smart Rules (`trigger.rs`) | L2 |
@@ -40,7 +40,7 @@ Breadth for its own sake is an explicit non-goal. These are excluded on purpose 
 | Multi-device / cloud sync, real-time collaboration, accounts, subscriptions | The file *is* the sync boundary and it is yours; no lock-in, ever |
 | Mandatory generative AI, AppleScript/OS host bridges | The λδ sandbox is deliberately no-I/O; local LLMs are opt-in host capabilities only |
 | Promoting `Note.links → Vec<Link>`; persisting derived indices; per-node λδ in the hot loop | Enforced engineering non-goals — see [Developer](Developer) |
-| npm/bun/yarn/pnpm; new TypeScript/Python/Go source | Deno 2 is the only JS toolchain |
+| npm/Deno/Yarn/pnpm; new TypeScript/Python/Go source | Bun is the only JS toolchain |
 
 ## Governance — contractiles & machine-readable state
 
@@ -48,7 +48,7 @@ Machine-checkable governance is expressed as data, not prose:
 
 | Where | Holds |
 |---|---|
-| [`.machine_readable/MUST.contractile`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/MUST.contractile) | Persistent invariants: SPDX on every file, Deno-only, no hardcoded absolute paths, no `unsafe` without a safety comment, tests never weakened, CI SHA-pinned |
+| [`.machine_readable/MUST.contractile`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/MUST.contractile) | Persistent invariants: SPDX on every file, Bun-only, no hardcoded absolute paths, no `unsafe` without a safety comment, tests never weakened, CI SHA-pinned |
 | [`.machine_readable/TRUST.contractile`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/TRUST.contractile) · [`INTENT`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/INTENT.contractile) · [`ADJUST`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/ADJUST.contractile) | Provenance/security; the North Star + next-actions; drift tolerances |
 | [`.machine_readable/6a2/`](https://github.com/hyperpolymath/nexia-list/tree/main/.machine_readable/6a2) | `STATE`, `META`, `ECOSYSTEM`, `PLAYBOOK` (a2ml) — the honest checkpoint a release reads from; update each session |
 | [`contractiles/`](https://github.com/hyperpolymath/nexia-list/tree/main/contractiles) | Root `must` / `trust` / `intend` Verbfiles |
@@ -56,9 +56,9 @@ Machine-checkable governance is expressed as data, not prose:
 
 ## CI & readiness status
 
-- **Readiness grade: D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)). Builds from source; lockfiles present; the Rust core's **90 tests** pass. Path to C: a browser smoke test for the WASM bundle, coverage reporting, and a release workflow. Note the grade tracks *release engineering*, not feature completeness — it is not a verdict on how much is built.
+- **Readiness grade: D** ([READINESS.md](https://github.com/hyperpolymath/nexia-list/blob/main/READINESS.md)). Builds from source; lockfiles present; the Rust core's **91 tests** pass. Path to C: a browser smoke test for the WASM bundle, coverage reporting, and a release workflow. Note the grade tracks *release engineering*, not feature completeness — it is not a verdict on how much is built.
 - **Overall ~65% MVP** ([TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md)); the critical path is the UI surface, not the WASM bridge (which is wired and green).
-- **CI today** runs *both* estate governance/scanning (Hypatia, dogfood-gate, scorecard) **and product CI**: `rust-ci.yml` (fmt, clippy `--all-targets --features wasm`, tests, wasm32 build) and `ui-ci.yml` (ReScript, wasm, Deno tests, bundle, lint), load-bearing since [#22](https://github.com/hyperpolymath/nexia-list/pull/22) and green on main. Keep every GitHub Action **SHA-pinned**; do not remove a workflow without recorded approval.
+- **CI today** runs *both* estate governance/scanning and product CI: `rust-ci.yml` (fmt, clippy `--all-targets --features wasm`, tests, wasm32 build) and `ui-ci.yml` (ReScript, wasm, Bun tests/bundle, Biome lint), load-bearing since [#22](https://github.com/hyperpolymath/nexia-list/pull/22). Keep every GitHub Action **SHA-pinned**; do not remove a workflow without recorded approval.
 - `just check` mirrors `rust-ci.yml` exactly — if it passes locally and CI still fails, that divergence is a bug worth fixing in the Justfile.
 - **Local gates**: `just check` (lint + rustfmt + clippy), `just test`, `just doctor`, `just assail` (panic-attacker, if installed).
 

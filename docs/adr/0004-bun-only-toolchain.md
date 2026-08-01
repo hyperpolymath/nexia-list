@@ -1,0 +1,33 @@
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
+# ADR-0004: Bun-only JavaScript toolchain
+
+- Status: Accepted
+- Date: 2026-08-01
+- Supersedes: [ADR-0002](0002-deno-only-interpretation.md)
+
+## Context
+
+The Hyperpolymath estate standardized on Bun. Nexia-List previously used Deno
+for dependency resolution, tasks, tests, scripts, and esbuild orchestration.
+Keeping a repository-local exception would duplicate toolchains and leave its
+machine-readable invariants at odds with estate policy.
+
+## Decision
+
+- Bun is the sole JavaScript runtime and package manager.
+- Dependencies and tasks live in `package.json`; exact resolution lives in
+  `bun.lock`.
+- `bun install --frozen-lockfile` is the reproducible install and CI path.
+- UI contracts use `bun:test`.
+- Production and development bundles use Bun's native bundler and server.
+- Biome provides JavaScript formatting and linting.
+- npm, Deno, Yarn, and pnpm CLIs and lockfiles are not used.
+
+Rust, Cargo, wasm-bindgen, ReScript, and the browser architecture are unchanged.
+
+## Consequences
+
+The repository has one estate-standard JavaScript toolchain, one JavaScript
+lockfile, and no compatibility layer retaining Deno APIs. Historical documents
+may describe the former Deno arrangement, but current operational documentation
+and machine-readable policy point here.

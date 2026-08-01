@@ -24,7 +24,7 @@ is intentionally not built in this repo's CI.
                         │           UI LAYER (RESCRIPT)           │
                         │  Hand-rolled TEA on @rescript/react     │
                         │  Model / Msg / Update / View            │
-                        │  esbuild bundle → web/dist/             │
+                        │  Bun bundle → web/dist/                 │
                         └───────────────────┬─────────────────────┘
                                             │
                                             ▼
@@ -65,7 +65,7 @@ is intentionally not built in this repo's CI.
 
                         ┌─────────────────────────────────────────┐
                         │          REPO INFRASTRUCTURE            │
-                        │  Deno 2 tasks   Justfile   scripts/     │
+                        │  Bun tasks      Justfile   scripts/     │
                         │  rust-ci.yml    ui-ci.yml               │
                         │  .machine_readable/  0-AI-MANIFEST.a2ml │
                         └─────────────────────────────────────────┘
@@ -86,8 +86,8 @@ PRODUCT
                                                        links, wiki-links, substring
                                                        search, JSON storage, agents,
                                                        Markdown/OPML exchange. 5,344 LOC
-                                                       (excl. test modules); 90 tests
-                                                       green (81 unit + 3 exchange +
+                                                       (excl. test modules); 91 tests
+                                                       green (82 unit + 3 exchange +
                                                        2 golden + 2 property + 2 doc)
   λδ (LambdaDelta) Substrate        ███████░░░  70%    BUILT, not planned: reader, value
                                                        model, evaluator + Budget sandbox,
@@ -97,9 +97,9 @@ PRODUCT
                                                        the core) across #35, #36, #43.
                                                        Reachable from JS via
                                                        lambdadeltaEval / evalLambdadelta.
-                                                       Outstanding is SURFACING, not
-                                                       engine: L1 fx-fields, L2 action
-                                                       hooks, L3 REPL, L4 .ld packages
+                                                       L1 read-only fx-field UI now ships.
+                                                       Outstanding: L2 action hooks,
+                                                       L3 REPL, L4 .ld packages
   ReScript UI (TEA-style)           ██████░░░░  60%    Compiles; list/editor work; canvas
                                                        pan/zoom, note drag, dbl-click
                                                        create, keyboard-accessible
@@ -108,15 +108,12 @@ PRODUCT
                                                        1,763 LOC. Missing: multi-pane,
                                                        command palette, inspector,
                                                        markdown render, reasoning view
-  WASM Bridge (core → browser)      █████████░  90%    WIRED and exercised: Main.res loads
+  WASM Bridge (core → browser)      ██████████ 100%    WIRED and exercised: Main.res loads
                                                        the wasm at boot; WasmStore binds
-                                                       21 of 31 exports; ui-ci builds it
-                                                       and runs the contract tests green.
-                                                       Gap: eval_lambdadelta, get_note,
-                                                       set_attribute, backlinks, name,
-                                                       len are exported but unbound in
-                                                       ReScript ("dormant core methods")
-  Web / PWA                         ███████░░░  70%    Builds and runs via esbuild bundle;
+                                                       all 31 exports; ui-ci builds it and
+                                                       runs the facade contract test green,
+                                                       including all three λδ entry points
+  Web / PWA                         ███████░░░  70%    Builds and runs via Bun bundle;
                                                        service worker (offline-first
                                                        precache) + webmanifest + icon
                                                        ship and are registered in
@@ -131,7 +128,7 @@ INFRASTRUCTURE
                                                        rust-ci.yml (fmt, clippy
                                                        --all-targets --features wasm,
                                                        tests, wasm32 build) and ui-ci.yml
-                                                       (rescript, wasm, deno tests,
+                                                       (rescript, wasm, Bun tests,
                                                        bundle, lint). SHA-pinned; green
                                                        on main. Gap: no coverage report,
                                                        no browser smoke test, no release
@@ -144,9 +141,8 @@ INFRASTRUCTURE
 OVERALL:                            ███████░░░  ~65%   Core + substrate + bridge are in
                                                        place and green. The critical path
                                                        has MOVED off the WASM bridge and
-                                                       onto the UI surface: binding the
-                                                       dormant core methods and giving λδ
-                                                       a door (L1→L3)
+                                                       onto the UI surface: continuing
+                                                       λδ doors (L2→L3)
 ```
 
 ## Key Dependencies

@@ -189,7 +189,7 @@ pub struct SimilarityIndex {
 
 **The dense-`DocId` rule is mandatory, not an optimisation.** Postings must store `(u32, u32)`, never the 16-byte `Uuid`. This is what keeps the index near ~35–50 MB at 10k notes (§7) — comfortable in a browser tab.
 
-Tokenisation is deterministic (Unicode word segmentation → lowercase → stop-list → optional Porter stem), with a **fixed seed** for SimHash and no clock/RNG — honouring the λδ sandbox and IndexedDB determinism. Crates are Rust-only via cargo (`unicode-segmentation`, `rust-stemmers`, `blake3`), so the Deno-only-for-JS MUST is untouched; BM25/cosine/NB are hand-rolled. A hand-rolled ASCII tokenizer + static stop-list is the zero-dep fallback if WASM size ever matters.
+Tokenisation is deterministic (Unicode word segmentation → lowercase → stop-list → optional Porter stem), with a **fixed seed** for SimHash and no clock/RNG — honouring the λδ sandbox and IndexedDB determinism. Crates are Rust-only via cargo (`unicode-segmentation`, `rust-stemmers`, `blake3`), so the Bun-only-for-JS MUST is untouched; BM25/cosine/NB are hand-rolled. A hand-rolled ASCII tokenizer + static stop-list is the zero-dep fallback if WASM size ever matters.
 
 ### 3.4 `Notebook` deltas
 

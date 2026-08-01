@@ -239,6 +239,52 @@ body {
   gap: 2rem;
 }
 
+.formula-panel {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.formula-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.formula-help {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.formula-source {
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.75rem;
+  resize: vertical;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.formula-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.formula-result {
+  padding: 0.35rem 0.6rem;
+  background: var(--note-bg);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
 .note-links {
   margin-top: 1rem;
   padding: 1rem;

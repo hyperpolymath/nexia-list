@@ -449,6 +449,27 @@ fn arb_value() -> impl Strategy<Value = Value> {
     })
 }
 
+/// Pure, bounded expressions used to check determinism across independent
+/// interpreters. Small integer leaves and a shallow tree avoid making machine
+/// overflow part of the property under test.
+fn arb_pure_expr() -> impl Strategy<Value = String> {
+    (-10i64..=10)
+        .prop_map(|n| n.to_string())
+        .prop_recursive(3, 32, 3, |inner| {
+            prop_oneof![
+                (inner.clone(), inner.clone()).prop_map(|(a, b)| format!("(+ {a} {b})")),
+                (inner.clone(), inner.clone()).prop_map(|(a, b)| format!("(- {a} {b})")),
+                (inner.clone(), inner).prop_map(|(a, b)| format!("(* {a} {b})")),
+            ]
+        })
+}
+
+fn arb_identifier() -> impl Strategy<Value = String> {
+    "[a-z][a-z0-9-]{0,6}".prop_filter("must parse as a symbol", |name| {
+        !matches!(name.as_str(), "nil" | "true" | "false")
+    })
+}
+
 proptest! {
     /// The reader never panics on arbitrary input (it may Err, but must not crash).
     #[test]
@@ -461,5 +482,30 @@ proptest! {
     fn print_read_round_trip(v in arb_value()) {
         let printed = v.to_string();
         prop_assert_eq!(read_one(&printed), Ok(v));
+    }
+
+    /// A pure expression has the same result in independent fresh evaluators.
+    #[test]
+    fn pure_evaluation_is_deterministic(src in arb_pure_expr()) {
+        let left = Interp::new().eval_str(&src, Budget::with_limits(10_000, 64));
+        let right = Interp::new().eval_str(&src, Budget::with_limits(10_000, 64));
+        prop_assert_eq!(left, right);
+    }
+
+    /// A binding introduced by a macro cannot capture a caller binding,
+    /// including when both happen to use exactly the same printed identifier.
+    #[test]
+    fn macro_introduced_binding_does_not_capture(
+        introduced in arb_identifier(),
+        caller in arb_identifier(),
+    ) {
+        let src = format!(
+            "(defmacro proof-m [e] `(let [{introduced} 2] ~e)) \
+             (let [{caller} 1] (proof-m {caller}))"
+        );
+        prop_assert_eq!(
+            Interp::new().eval_str(&src, Budget::with_limits(10_000, 64)),
+            Ok(Value::Int(1)),
+        );
     }
 }

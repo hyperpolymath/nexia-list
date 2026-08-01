@@ -9,10 +9,10 @@ anywhere, including forks:
 | Workflow | What it verifies |
 |---|---|
 | `rust-ci.yml` | `cargo fmt --check`, `clippy -D warnings`, `cargo test` (unit + golden contract + property tests), wasm32 build + wasm-bindgen |
-| `ui-ci.yml` | ReScript compile under Deno, wasm core build, `deno test` (TEA update tests + golden-fixture contract tests), esbuild bundle, `deno lint` |
+| `ui-ci.yml` | ReScript compile under Bun, wasm core build, `bun test` (TEA update tests + golden-fixture contract tests), Bun bundle, Biome lint |
 
 The same commands run locally: `just test`, `just build`, `just check`
-(or the underlying `deno task …` / `cargo …` equivalents).
+(or the underlying `bun run …` / `cargo …` equivalents).
 
 ## Estate workflows (expected to no-op or fail outside hyperpolymath)
 
@@ -26,8 +26,7 @@ private or sibling `hyperpolymath` repos (`standards` reusable workflows,
 `hypatia-scan.yml`, `instant-sync.yml`, `mirror.yml`,
 `push-email-notify.yml`, `secret-scanner.yml`
 
-`codeql.yml` and `scorecard.yml` are standard GitHub scanning and run
-anywhere.
+`codeql.yml` is standard GitHub scanning and runs anywhere.
 
 Branch protection should require `rust-ci` and `ui-ci`; estate workflows
 should stay non-required.

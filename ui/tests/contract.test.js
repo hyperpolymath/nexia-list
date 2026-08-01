@@ -3,15 +3,30 @@
 // Both sides decode tests/fixtures/notebook.golden.json; a serde shape
 // change that breaks the UI contract fails here.
 
-import initWasm, { WasmNotebook } from "../../web/wasm/nexia_core.js";
+import initWasm, {
+  lambdadeltaEval,
+  WasmNotebook,
+} from "../../web/wasm/nexia_core.js";
+import { test } from "bun:test";
+import { readFile } from "node:fs/promises";
 
-const wasmBytes = await Deno.readFile(
+const wasmBytes = await readFile(
   new URL("../../web/wasm/nexia_core_bg.wasm", import.meta.url),
 );
 await initWasm({ module_or_path: wasmBytes });
 
-const fixture = await Deno.readTextFile(
+const fixture = await readFile(
   new URL("../../tests/fixtures/notebook.golden.json", import.meta.url),
+  "utf8",
+);
+const lambdadeltaVectors = JSON.parse(
+  await readFile(
+    new URL(
+      "../../tests/fixtures/lambdadelta-conformance.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
 );
 
 const ALPHA = "11111111-1111-4111-8111-111111111111";
@@ -21,7 +36,7 @@ function assert(cond, label) {
   if (!cond) throw new Error(`contract violated: ${label}`);
 }
 
-Deno.test("golden fixture decodes to the UI shape", () => {
+test("golden fixture decodes to the UI shape", () => {
   const nb = WasmNotebook.from_json(fixture);
   const snap = nb.snapshot();
 
@@ -66,7 +81,7 @@ Deno.test("golden fixture decodes to the UI shape", () => {
   assert(snap.backlinks[BETA].includes(ALPHA), "backlinks rebuilt on load");
 });
 
-Deno.test("mutations return granular views; disk format stays snake_case", () => {
+test("mutations return granular views; disk format stays snake_case", () => {
   const nb = WasmNotebook.from_json(fixture);
 
   const created = nb.create_note("Gamma");
@@ -92,4 +107,11 @@ Deno.test("mutations return granular views; disk format stays snake_case", () =>
     "disk format is snake_case",
   );
   assert(disk.name === "Golden", "disk name preserved");
+});
+
+test("WASM λδ kernel matches the native conformance vectors", () => {
+  for (const vector of lambdadeltaVectors) {
+    const actual = lambdadeltaEval(vector.source);
+    assert(actual === vector.printed, `λδ vector: ${vector.name}`);
+  }
 });

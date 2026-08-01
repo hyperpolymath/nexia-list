@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Markdown-vault delivery: write one file per note via the File System Access
 // API where available (Chromium), else download a single concatenated file.
-// No third-party zip library — honours the Deno-only / no-npm policy.
+// No third-party zip library — keeps the export path dependency-free.
 
 function downloadBlob(filename, text, type) {
   const blob = new Blob([text], { type });

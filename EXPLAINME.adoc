@@ -16,10 +16,10 @@ ____
 |===
 | Technology | Learn More
 
-| **Deno 2** (only JS toolchain) | https://deno.land
+| **Bun 1.3+** (only JS toolchain) | https://bun.sh
 | **ReScript 11** (TEA-style UI on @rescript/react) | https://rescript-lang.org
 | **Rust** (core engine, compiled to WASM via wasm-bindgen) | https://www.rust-lang.org
-| **esbuild** (bundling, via Deno) | https://esbuild.github.io
+| **Bun bundler** | https://bun.sh/docs/bundler
 |===
 
 == File Map
@@ -30,10 +30,10 @@ ____
 
 | `core/` | Rust core: Note/Notebook, backlinks, substring search, JSON storage
 | `ui/` | ReScript TEA-style UI (Model/Msg/Update/View + DOM bindings)
-| `scripts/` | Deno build/dev scripts
+| `scripts/` | Bun build/dev scripts
 | `web/` | Browser entry + bundle output (`dist/`)
 | `desktop/` | Optional Gossamer shell (external sibling checkout; not built in CI)
-| `docs/adr/` | Architecture decision records (web-first WASM, Deno-only)
+| `docs/adr/` | Architecture decision records (web-first WASM, Bun-only)
 | `tests/` | Cross-cutting test suite
 |===
 

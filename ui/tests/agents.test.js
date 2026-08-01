@@ -2,8 +2,10 @@
 // Contract test for agents across the wasm boundary.
 
 import initWasm, { WasmNotebook } from "../../web/wasm/nexia_core.js";
+import { test } from "bun:test";
+import { readFile } from "node:fs/promises";
 
-const wasmBytes = await Deno.readFile(
+const wasmBytes = await readFile(
   new URL("../../web/wasm/nexia_core_bg.wasm", import.meta.url),
 );
 await initWasm({ module_or_path: wasmBytes });
@@ -12,7 +14,7 @@ function assert(cond, label) {
   if (!cond) throw new Error(`agents contract violated: ${label}`);
 }
 
-Deno.test("agents collect matching notes and persist", () => {
+test("agents collect matching notes and persist", () => {
   const nb = new WasmNotebook("Test");
   const todo = nb.create_note("Buy milk");
   nb.set_attribute(todo.id, "status", JSON.stringify("todo"));

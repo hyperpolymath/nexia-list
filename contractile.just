@@ -33,7 +33,7 @@ intend-list:
 # Source: Mustfile.a2ml
 
 # Run all must checks
-must-check: must-license-present must-readme-present must-spdx-headers must-no-banned-files
+must-check: must-license-present must-readme-present must-spdx-headers must-no-hardcoded-paths must-no-dockerfiles must-no-makefiles
     @echo 'All must checks passed'
 
 # LICENSE file must exist
@@ -46,11 +46,19 @@ must-readme-present:
 
 # Source files should have SPDX license headers
 must-spdx-headers:
-    find . -name '*.rs' -o -name '*.res' -o -name '*.gleam' | head -20 | xargs -r grep -L 'SPDX-License-Identifier' | wc -l | grep -q '^0$'
+    ! find core ui scripts web -type f \( -name '*.rs' -o -name '*.res' -o -name '*.js' \) -not -path '*/node_modules/*' -not -path '*/target/*' -not -path '*/dist/*' -not -path '*/wasm/*' -not -name '*.res.js' -print0 | xargs -0 -r grep -L 'SPDX-License-Identifier' | grep -q .
 
-# No Dockerfiles or Makefiles
-must-no-banned-files:
-    test ! -f Dockerfile && test ! -f Makefile
+# No hardcoded developer paths
+must-no-hardcoded-paths:
+    ! grep -rn '/home/hyper\|/mnt/eclipse' --include='*.rs' --include='*.res' --include='*.ex' --include='*.gleam' --include='*.zig' --include='*.sh' core ui scripts web 2>/dev/null
+
+# No Dockerfiles (use Containerfile)
+must-no-dockerfiles:
+    test ! -f Dockerfile
+
+# No Makefiles (use Justfile)
+must-no-makefiles:
+    test ! -f Makefile
 
 
 # === TRUST (Integrity & Provenance Verification) ===
@@ -71,5 +79,3 @@ trust-no-secrets-committed:
 # Containerfile base images use pinned digests
 trust-container-images-pinned:
     test ! -f Containerfile || grep -q '@sha256:' Containerfile
-
-
