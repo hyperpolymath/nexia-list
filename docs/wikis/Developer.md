@@ -19,12 +19,12 @@ This is the discipline Nexia already proved with `Notebook::backlinks` — a rev
 |---|---|---|
 | Core engine | Rust — Note/Notebook, backlinks, wiki-links, substring search, JSON storage | [`core/`](https://github.com/hyperpolymath/nexia-list/tree/main/core) |
 | **λδ substrate** | **Built** — reader, value model, evaluator + Budget, hygienic macros, multimethods, prelude, and the notebook host seam (~3,400 LOC excl. tests, ~64% of the core) | [`core/src/lambdadelta/`](https://github.com/hyperpolymath/nexia-list/tree/main/core/src/lambdadelta), `core/src/lambdadelta_host.rs` |
-| Browser bridge | wasm-bindgen (**wired**) — the Rust core compiled to one WASM bundle; 31 exports, 21 bound in ReScript | `core/src/wasm.rs`, [`ui/src/store/WasmStore.res`](https://github.com/hyperpolymath/nexia-list/blob/main/ui/src/store/WasmStore.res) |
-| UI | ReScript 11, **hand-rolled** TEA (Model/Msg/Update/View) on `@rescript/react`, esbuild | [`ui/`](https://github.com/hyperpolymath/nexia-list/tree/main/ui) |
-| Tooling | **Deno 2 only** — tasks + esbuild; no npm/bun/yarn/pnpm | [`scripts/`](https://github.com/hyperpolymath/nexia-list/tree/main/scripts) |
+| Browser bridge | wasm-bindgen (**wired**) — the Rust core compiled to one WASM bundle; all 31 exports bound in ReScript | `core/src/wasm.rs`, [`ui/src/store/WasmStore.res`](https://github.com/hyperpolymath/nexia-list/blob/main/ui/src/store/WasmStore.res) |
+| UI | ReScript 11, **hand-rolled** TEA (Model/Msg/Update/View) on `@rescript/react`, Bun bundler | [`ui/`](https://github.com/hyperpolymath/nexia-list/tree/main/ui) |
+| Tooling | **Bun only** — packages, tasks, tests, bundler, and dev server | [`scripts/`](https://github.com/hyperpolymath/nexia-list/tree/main/scripts) |
 | Persistence | Human-readable JSON via IndexedDB + file download/upload | browser |
 
-Status is tracked live in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) (~65% MVP). The WASM bridge is wired and green in CI; the critical path is now the UI surface — 10 of the 31 WASM exports (including both λδ entry points) are still unbound in ReScript. The desktop shell ([Gossamer](https://github.com/hyperpolymath/gossamer)) is external and not built in this repo's CI.
+Status is tracked live in [TOPOLOGY.md](https://github.com/hyperpolymath/nexia-list/blob/main/TOPOLOGY.md) (~65% MVP). The WASM bridge is complete and green locally: all 31 exports, including the three λδ entry points, are bound in ReScript and covered by a facade contract test. The critical path is now giving those capabilities a progressively disclosed UI. The desktop shell ([Gossamer](https://github.com/hyperpolymath/gossamer)) is external and not built in this repo's CI.
 
 ## The three tracks
 
@@ -65,7 +65,7 @@ These are load-bearing constraints, not oversights:
 - **Do not promote `Note.links` → `Vec<Link>`.** Typing lives in the additive `edges` channel; `links` stays untyped association. Promoting it touches ~6 sites and merges L0 association with causal edges.
 - **No per-node λδ dispatch inside the propagation sweep.** It drains the budget and double-borrows the `RefCell`; the native operator table is the hot path, `combine` is for exotic ops outside the loop.
 - **Never persist derived indices to disk.** backlinks, See-Also, BM25, reasoning layout are all `#[serde(skip)]`, rebuilt on load.
-- **Deno only**; markdown is Rust `pulldown-cmark` → typed AST → ReScript. No npm/bun/yarn/pnpm, no new TypeScript/Python/Go files.
+- **Bun only**; markdown is Rust `pulldown-cmark` → typed AST → ReScript. No npm/Deno/Yarn/pnpm, no new TypeScript/Python/Go files.
 - **No parenthesis before a door**; no L2+ surface at `powerLevel == 0`; no L1 panel that renders an empty header.
 
 The full list is [mind-management plan §8](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/mind-management-plan.md) and [integration §2](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/flyinglogic-devonthink-integration.md).
@@ -79,7 +79,7 @@ The full list is [mind-management plan §8](https://github.com/hyperpolymath/nex
 | [docs/design/flyinglogic-devonthink-proofs.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/flyinglogic-devonthink-proofs.md) | The proofs + the proof-obligation ledger the implementer discharges |
 | [docs/design/lambdadelta-spec.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/design/lambdadelta-spec.md) | λδ language spec v0.1 — syntax, note-as-value, builtins, kernel/host seam |
 | [docs/adr/0001-wasm-core-web-first.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0001-wasm-core-web-first.md) | Why Rust→WASM, web-first |
-| [docs/adr/0002-deno-only-interpretation.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0002-deno-only-interpretation.md) | The Deno-only toolchain rule |
+| [docs/adr/0004-bun-only-toolchain.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0004-bun-only-toolchain.md) | The Bun-only toolchain rule |
 | [docs/adr/0003-lambdadelta-lisp-substrate.md](https://github.com/hyperpolymath/nexia-list/blob/main/docs/adr/0003-lambdadelta-lisp-substrate.md) | Why a homoiconic Lisp substrate, progressive-power L0–L4 |
 
 ## Building & contributing
@@ -87,12 +87,12 @@ The full list is [mind-management plan §8](https://github.com/hyperpolymath/nex
 Three commands from [QUICKSTART-DEV.adoc](https://github.com/hyperpolymath/nexia-list/blob/main/QUICKSTART-DEV.adoc):
 
 ```bash
-just setup          # deno task setup + rustup wasm32 target
-just build          # ReScript compile + esbuild bundle   (build-wasm for the core)
-just test           # cargo test (core) + deno test (UI)
+just setup          # bun install + rustup wasm32 target
+just build          # ReScript compile + Bun bundle   (build-wasm for the core)
+just test           # cargo test (core) + bun test (UI)
 ```
 
-Before a PR: `just check` (deno lint + rustfmt --check + clippy), `just test`, `deno task fmt`. Read [CONTRIBUTING.md](https://github.com/hyperpolymath/nexia-list/blob/main/CONTRIBUTING.md) and the invariants in [`.machine_readable/MUST.contractile`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/MUST.contractile) first — every source file needs an SPDX header (MPL-2.0 code, CC-BY-SA-4.0 docs), tests must not be weakened, and CI workflows stay SHA-pinned.
+Before a PR: `just check` (Biome + rustfmt --check + clippy), `just test`, `bun run fmt`. Read [CONTRIBUTING.md](https://github.com/hyperpolymath/nexia-list/blob/main/CONTRIBUTING.md) and the invariants in [`.machine_readable/MUST.contractile`](https://github.com/hyperpolymath/nexia-list/blob/main/.machine_readable/MUST.contractile) first — every source file needs an SPDX header (MPL-2.0 code, CC-BY-SA-4.0 docs), tests must not be weakened, and CI workflows stay SHA-pinned.
 
 ---
 

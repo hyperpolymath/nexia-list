@@ -2,8 +2,10 @@
 // Contract test for the import/export boundary through the wasm bindings.
 
 import initWasm, { WasmNotebook } from "../../web/wasm/nexia_core.js";
+import { test } from "bun:test";
+import { readFile } from "node:fs/promises";
 
-const wasmBytes = await Deno.readFile(
+const wasmBytes = await readFile(
   new URL("../../web/wasm/nexia_core_bg.wasm", import.meta.url),
 );
 await initWasm({ module_or_path: wasmBytes });
@@ -12,7 +14,7 @@ function assert(cond, label) {
   if (!cond) throw new Error(`exchange contract violated: ${label}`);
 }
 
-Deno.test("markdown export shape and OPML", () => {
+test("markdown export shape and OPML", () => {
   const nb = new WasmNotebook("Test");
   const alpha = nb.create_note("Alpha");
   const beta = nb.create_note("Beta");
@@ -30,7 +32,7 @@ Deno.test("markdown export shape and OPML", () => {
   assert(opml.includes('text="Alpha"'), "opml outline for Alpha");
 });
 
-Deno.test("markdown round-trip preserves titles and links", () => {
+test("markdown round-trip preserves titles and links", () => {
   const nb = new WasmNotebook("Test");
   const a = nb.create_note("Alpha");
   const b = nb.create_note("Beta");
@@ -41,7 +43,9 @@ Deno.test("markdown round-trip preserves titles and links", () => {
   const snap = fresh.import_markdown_vault(files);
 
   assert(Object.keys(snap.notes).length === 2, "two notes imported");
-  const titles = Object.values(snap.notes).map((n) => n.title).sort();
+  const titles = Object.values(snap.notes)
+    .map((n) => n.title)
+    .sort();
   assert(titles[0] === "Alpha" && titles[1] === "Beta", "titles preserved");
 
   const alpha = Object.values(snap.notes).find((n) => n.title === "Alpha");
@@ -50,12 +54,14 @@ Deno.test("markdown round-trip preserves titles and links", () => {
   assert(snap.backlinks[beta.id].includes(alpha.id), "backlink rebuilt");
 });
 
-Deno.test("import creates placeholders for unresolved wiki-links", () => {
+test("import creates placeholders for unresolved wiki-links", () => {
   const fresh = new WasmNotebook("Empty");
   const snap = fresh.import_markdown_vault([
     { name: "One.md", content: "# One\n\nsee [[Ghost]]\n" },
   ]);
-  const titles = Object.values(snap.notes).map((n) => n.title).sort();
+  const titles = Object.values(snap.notes)
+    .map((n) => n.title)
+    .sort();
   assert(titles.includes("Ghost"), "placeholder note created");
   assert(Object.keys(snap.notes).length === 2, "two notes total");
 });

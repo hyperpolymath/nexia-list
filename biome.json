@@ -1,0 +1,22 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+  "files": {
+    "includes": [
+      "scripts/**/*.js",
+      "ui/tests/**/*.js",
+      "web/**/*.js",
+      "!ui/src/**/*.res.js",
+      "!ui/tests/**/*.res.js",
+      "!web/dist/**",
+      "!web/wasm/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {"recommended": true}
+  }
+}

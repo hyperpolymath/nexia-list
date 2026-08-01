@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { runAll } from "./GraphLayoutTests.res.js";
+import { test } from "bun:test";
 
-Deno.test("graph layout geometry", () => {
+test("graph layout geometry", () => {
   runAll();
 });

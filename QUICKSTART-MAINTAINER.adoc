@@ -15,9 +15,9 @@ server or opened locally. There is no server-side component.
 
 == Build Dependencies
 
-* **Deno 2.x** — the only JS toolchain (no npm/bun/yarn/pnpm)
+* **Bun 1.3+** — the only JS toolchain (no npm/deno/yarn/pnpm)
 * **Rust stable** with the `wasm32-unknown-unknown` target (for the WASM core)
-* **just** — task runner (optional; recipes delegate to `deno task ...`)
+* **just** — task runner (optional; recipes delegate to `bun run ...`)
 * Optional, desktop shell only: a sibling checkout of
   https://github.com/hyperpolymath/gossamer[hyperpolymath/gossamer] — the
   desktop shell is NOT built in this repo's CI and is not required
@@ -33,7 +33,7 @@ None. The product is a static web bundle; users need only a modern browser.
 git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
 just setup
-just build          # ReScript compile + esbuild bundle
+just build          # ReScript compile + Bun bundle
 just build-wasm     # Rust core → WASM
 ----
 
@@ -63,8 +63,8 @@ browser-side (IndexedDB) and via JSON file download/upload.
 
 [source,bash]
 ----
-just doctor            # Tooling diagnostic (just, git, deno, cargo)
-just check             # Deno lint + rustfmt --check + clippy
+just doctor            # Tooling diagnostic (just, git, bun, cargo)
+just check             # Biome lint + rustfmt --check + clippy
 just test              # Rust core tests + UI tests
 ----
 
@@ -82,7 +82,7 @@ Then redeploy `web/dist/`.
 == Security Notes
 
 * License: MPL-2.0 (code), CC-BY-SA-4.0 (docs)
-* JS dependencies pinned via `deno.lock`; Rust dependencies via `Cargo.lock`
+* JS dependencies pinned via `bun.lock`; Rust dependencies via `Cargo.lock`
 * GitHub Actions are SHA-pinned (see `.machine_readable/MUST.contractile`)
 * Optional pre-commit scan: `just assail` (panic-attacker, if installed)
 

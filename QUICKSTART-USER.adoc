@@ -16,7 +16,7 @@ link:README.adoc[README.adoc] for the full pitch.
 Before you begin, ensure you have:
 
 * **just** — task runner (https://github.com/casey/just[install guide])
-* **Deno 2.x** — https://deno.land/[install guide]
+* **Bun 1.3+** — https://bun.sh/[install guide]
 * **Rust stable** — https://www.rust-lang.org/tools/install[install guide]
   (needed to build the core; `just setup` adds the WASM target)
 * A modern web browser
@@ -33,7 +33,7 @@ just setup
 
 The setup recipe will:
 
-* Install JS dependencies via Deno (no npm required)
+* Install JS dependencies via Bun
 * Add the `wasm32-unknown-unknown` Rust target for the WASM core
 
 == First Run
@@ -59,7 +59,7 @@ If something isn't working:
 just doctor
 ----
 
-This checks that the required tools (just, git, deno, cargo) are available
+This checks that the required tools (just, git, bun, cargo) are available
 and suggests fixes if not.
 
 == Get Help

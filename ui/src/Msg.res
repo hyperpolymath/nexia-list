@@ -15,6 +15,9 @@ type msg =
   | UpdateNoteContent(noteId, string)
   | StartEditingNote(noteId)
   | StopEditingNote
+  // L1 LambdaDelta formula field (read-only; `self` is the selected note)
+  | SetFormulaSource(string)
+  | EvaluateFormula(noteId)
   // Note positioning
   | MoveNote(noteId, point2D)
   | ResizeNote(noteId, float, float)

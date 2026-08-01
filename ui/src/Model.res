@@ -33,6 +33,9 @@ type model = {
   activeAgent: option<agentId>,
   /// Note IDs collected by the active agent
   agentResults: array<noteId>,
+  /// Source and most recent result for the progressively disclosed L1 λδ formula panel
+  formulaSource: string,
+  formulaResult: option<string>,
 }
 
 /// Create an empty notebook
@@ -63,6 +66,8 @@ let initial = (): model => {
   agents: [],
   activeAgent: None,
   agentResults: [],
+  formulaSource: "(count (words (content self)))",
+  formulaResult: None,
 }
 
 /// Get a note by ID from the model

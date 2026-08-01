@@ -1,72 +1,110 @@
 // SPDX-License-Identifier: MPL-2.0
-/// Dev server: rescript -w + esbuild serve with rebuild on request.
-/// Run via: deno task dev
+/// Bun-native development server: ReScript watch + browser bundle rebuilds.
+/// Run via: bun run dev
 
-import * as esbuild from "esbuild";
+import { spawn } from "node:child_process";
+import { copyFile, mkdir, readdir, watch } from "node:fs/promises";
+import { extname, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../", import.meta.url));
+const dist = `${root}web/dist`;
 
-// ReScript watcher (compiles .res -> .res.js in-source)
-const rescript = new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "npm:rescript@11.1.4", "build", "-w"],
-  cwd: `${root}ui`,
-  stdout: "inherit",
-  stderr: "inherit",
-}).spawn();
+async function bundle() {
+  const result = await Bun.build({
+    entryPoints: [`${root}ui/src/Main.res.js`],
+    target: "browser",
+    format: "esm",
+    sourcemap: "linked",
+    outdir: dist,
+    naming: "app.js",
+  });
+  if (!result.success) {
+    for (const log of result.logs) console.error(log);
+  }
+}
 
-const ctx = await esbuild.context({
-  entryPoints: [`${root}ui/src/Main.res.js`],
-  bundle: true,
-  format: "esm",
-  sourcemap: true,
-  outfile: `${root}web/dist/app.js`,
-  loader: { ".wasm": "file" },
-  logLevel: "info",
-});
-
-await ctx.watch();
-
-// Copy static assets once; edit them with the server running and reload.
-await Deno.mkdir(`${root}web/dist`, { recursive: true });
-for (
-  const asset of [
+async function copyAssets() {
+  await mkdir(dist, { recursive: true });
+  for (const asset of [
     "index.html",
     "styles.css",
     "manifest.webmanifest",
     "service-worker.js",
     "icon.svg",
-  ]
-) {
+  ]) {
+    await copyFile(`${root}web/${asset}`, `${dist}/${asset}`);
+  }
   try {
-    await Deno.copyFile(`${root}web/${asset}`, `${root}web/dist/${asset}`);
-  } catch (err) {
-    if (!(err instanceof Deno.errors.NotFound)) throw err;
-  }
-}
-try {
-  await Deno.mkdir(`${root}web/dist/wasm`, { recursive: true });
-  for await (const entry of Deno.readDir(`${root}web/wasm`)) {
-    if (entry.isFile) {
-      await Deno.copyFile(
-        `${root}web/wasm/${entry.name}`,
-        `${root}web/dist/wasm/${entry.name}`,
-      );
+    await mkdir(`${dist}/wasm`, { recursive: true });
+    for (const entry of await readdir(`${root}web/wasm`, {
+      withFileTypes: true,
+    })) {
+      if (entry.isFile()) {
+        await copyFile(
+          `${root}web/wasm/${entry.name}`,
+          `${dist}/wasm/${entry.name}`,
+        );
+      }
     }
+  } catch (err) {
+    if (err?.code !== "ENOENT") throw err;
   }
-} catch (err) {
-  if (!(err instanceof Deno.errors.NotFound)) throw err;
 }
 
-const { hosts, port } = await ctx.serve({
-  servedir: `${root}web/dist`,
-  port: 5173,
-});
-console.log(`Nexia-List dev server: http://${hosts[0] ?? "localhost"}:${port}/`);
+await copyAssets();
+await bundle();
 
-// Keep the process alive until interrupted; clean up the watcher on exit.
-Deno.addSignalListener("SIGINT", () => {
-  rescript.kill();
-  esbuild.stop();
-  Deno.exit(0);
+let rebuildTimer;
+const watchAbort = new AbortController();
+const watcher = watch(`${root}ui/src`, { recursive: true, signal: watchAbort.signal });
+void (async () => {
+  for await (const _event of watcher) {
+    clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => void bundle(), 75);
+  }
+})();
+
+const contentTypes = {
+  ".css": "text/css",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".svg": "image/svg+xml",
+  ".wasm": "application/wasm",
+  ".webmanifest": "application/manifest+json",
+};
+
+const server = Bun.serve({
+  port: Number(process.env.PORT ?? 5173),
+  async fetch(request) {
+    const pathname = decodeURIComponent(new URL(request.url).pathname);
+    const relative = pathname === "/" ? "index.html" : pathname.slice(1);
+    const safe = normalize(relative).replace(/^\.\.(?:\/|\\|$)/, "");
+    const file = Bun.file(`${dist}/${safe}`);
+    if (!(await file.exists()))
+      return new Response("Not found", { status: 404 });
+    return new Response(file, {
+      headers: {
+        "content-type":
+          contentTypes[extname(safe)] ?? "application/octet-stream",
+      },
+    });
+  },
 });
-await rescript.status;
+
+const rescript = spawn("bunx", ["rescript", "build", "-w"], {
+  cwd: `${root}ui`,
+  stdio: "inherit",
+});
+
+console.log(`Nexia-List dev server: ${server.url}`);
+
+process.on("SIGINT", () => {
+  clearTimeout(rebuildTimer);
+  watchAbort.abort();
+  rescript.kill();
+  server.stop();
+  process.exit(0);
+});

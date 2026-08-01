@@ -17,7 +17,7 @@
 
 ## Decision
 
-- Compile `nexia-core` to WebAssembly with wasm-bindgen (`deno task
+- Compile `nexia-core` to WebAssembly with wasm-bindgen (`bun run
   build:wasm`).
 - The **browser is the primary target**: the bundled app in `web/dist/` runs
   the real Rust core client-side, with persistence via IndexedDB and JSON
@@ -33,7 +33,7 @@
 
 - One engine, one data model — no type drift between platforms; every target
   ships the same tested core.
-- The product is buildable and testable entirely within this repo (Deno 2 +
+- The product is buildable and testable entirely within this repo (Bun +
   Rust stable + `wasm32-unknown-unknown` target); CI can cover the real
   product.
 - Browser persistence limits apply (IndexedDB quotas; explicit file

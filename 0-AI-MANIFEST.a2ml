@@ -52,7 +52,7 @@ Nexia-List is a local-first, web-first personal knowledge management tool inspir
 by Tinderbox. It provides spatial canvas note arrangement, bidirectional
 linking, and (planned) intelligent agents and prototype inheritance. Built
 with a Rust core compiled to WASM (wasm-bindgen), a ReScript TEA-style UI on
-@rescript/react, and Deno 2 tooling. Desktop is an OPTIONAL Gossamer shell
+@rescript/react, and Bun tooling. Desktop is an OPTIONAL Gossamer shell
 requiring an external sibling checkout; it is not built in this repo's CI.
 
 ```
@@ -63,7 +63,7 @@ nexia-list/
 │   └── src/
 ├── ui/                         # ReScript TEA-style application
 │   └── src/
-├── scripts/                    # Deno build/dev scripts (esbuild)
+├── scripts/                    # Bun build/dev scripts and native bundling
 ├── desktop/                    # OPTIONAL Gossamer shell (external; not built in CI)
 │   └── src/
 ├── web/                        # Browser build (bundle output in dist/)

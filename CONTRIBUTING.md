@@ -3,9 +3,9 @@
 
 ## Development Setup
 
-Prerequisites: [Deno](https://deno.land/) 2.x and [Rust](https://www.rust-lang.org/tools/install)
-stable (plus the `wasm32-unknown-unknown` target for WASM builds). Deno is the
-only JS toolchain — do not use npm/bun/yarn/pnpm. A Guix environment is
+Prerequisites: [Bun](https://bun.sh/) 1.3+ and [Rust](https://www.rust-lang.org/tools/install)
+stable (plus the `wasm32-unknown-unknown` target for WASM builds). Bun is the
+only JS toolchain — do not use npm/deno/yarn/pnpm. A Guix environment is
 provided via `guix.scm` (`guix shell`) if you prefer reproducible shells.
 
 ```bash
@@ -14,17 +14,17 @@ git clone https://github.com/hyperpolymath/nexia-list.git
 cd nexia-list
 
 # Install dependencies
-deno task setup
+bun install --frozen-lockfile
 
 # Run the development server (http://localhost:5173)
-deno task dev
+bun run dev
 
 # Build (ReScript + web bundle)
-deno task build
+bun run build
 
 # Verify setup
-deno task lint
-deno task test    # Rust core tests + UI tests
+bun run lint
+bun run test    # Rust core tests + UI tests
 ```
 
 Equivalent `just` recipes exist: `just setup`, `just build`, `just test`,
@@ -35,7 +35,7 @@ Equivalent `just` recipes exist: `just setup`, `just build`, `just test`,
 nexia-list/
 ├── core/                # Rust core — notes, backlinks, search, JSON storage
 ├── ui/                  # ReScript TEA-style UI (@rescript/react)
-├── scripts/             # Deno build/dev scripts (esbuild)
+├── scripts/             # Bun build/dev scripts
 ├── web/                 # Browser entry + bundle output (dist/)
 ├── desktop/             # OPTIONAL Gossamer shell (external sibling checkout;
 │                        # not built in this repo's CI)
@@ -54,7 +54,8 @@ nexia-list/
 ├── README.adoc
 ├── ROADMAP.adoc
 ├── SECURITY.md
-├── deno.json            # Deno tasks and import map
+├── package.json         # Bun tasks and dependencies
+├── bun.lock             # Exact JavaScript dependency graph
 └── Justfile             # Task runner recipes
 ```
 

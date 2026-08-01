@@ -24,11 +24,16 @@ that MUST hold at all times.
 - run: test -f README.adoc || test -f README.md
 - severity: critical
 
+### spdx-headers
+- description: Source files must carry SPDX license headers
+- run: "! find core ui scripts web -type f \\( -name '*.rs' -o -name '*.res' -o -name '*.js' \\) -not -path '*/node_modules/*' -not -path '*/target/*' -not -path '*/dist/*' -not -path '*/wasm/*' -not -name '*.res.js' -print0 | xargs -0 -r grep -L 'SPDX-License-Identifier' | grep -q ."
+- severity: critical
+
 ## Banned
 
 ### no-hardcoded-paths
 - description: No hardcoded developer paths
-- run: "! grep -rn '/home/hyper\|/mnt/eclipse' --include='*.rs' --include='*.res' --include='*.ex' --include='*.gleam' --include='*.zig' --include='*.sh' . 2>/dev/null | grep -v '.git/' | grep -v 'ux-rollout.jl' | head -1"
+- run: "! grep -rn '/home/hyper\\|/mnt/eclipse' --include='*.rs' --include='*.res' --include='*.ex' --include='*.gleam' --include='*.zig' --include='*.sh' core ui scripts web 2>/dev/null"
 - severity: critical
 
 ### no-dockerfiles

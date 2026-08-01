@@ -22,10 +22,10 @@ standard. Grade assigned in the
 
 | Aspect | Status |
 | --- | --- |
-| Builds from source | Yes — `deno task build` (ReScript + esbuild bundle); Rust core builds and its **90 tests** pass (81 unit + 3 exchange + 2 golden + 2 property + 2 doc) |
-| Lockfiles | Yes — `deno.lock`, `Cargo.lock` |
-| CI | Estate governance/scanning **plus product CI**: `rust-ci.yml` (fmt, clippy `--all-targets --features wasm`, tests, wasm32 build) and `ui-ci.yml` (ReScript, wasm, Deno tests, bundle, lint) — both on every PR, SHA-pinned, green on main |
-| Tests | Rust core (90) **and** UI (10, via `deno task test:ui`), including a TEA↔WASM contract test. No browser-level integration test yet |
+| Builds from source | Yes — `bun run build` (ReScript + Bun bundle); Rust core builds and its **91 tests** pass (82 unit + 3 exchange + 2 golden + 2 property + 2 doc) |
+| Lockfiles | Yes — `bun.lock`, `Cargo.lock` |
+| CI | Estate governance/scanning **plus product CI**: `rust-ci.yml` (fmt, clippy `--all-targets --features wasm`, tests, wasm32 build) and `ui-ci.yml` (ReScript, wasm, Bun tests/bundle, Biome lint) — both on every PR and SHA-pinned |
+| Tests | Rust core (91) **and** UI (11, via `bun run test:ui`), including TEA↔WASM and complete ReScript↔WASM facade contract tests. No browser-level integration test yet |
 | Docs | Truth-reset 2026-07-02; TOPOLOGY re-derived 2026-07-17 after the λδ merges (#35, #36, #43) had gone unrecorded |
 | Known debt | unwrap/expect calls in core and desktop; unsafe `get` in View.res (see audit report) |
 

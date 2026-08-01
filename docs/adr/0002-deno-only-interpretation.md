@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 # ADR-0002: Interpretation of the "Deno only, no npm/bun/yarn/pnpm" invariant
 
+> **Status: Superseded on 2026-08-01 by [ADR-0004](0004-bun-only-toolchain.md).**
+> This file remains as the historical rationale for the former toolchain.
+
 - **Status:** Accepted
 - **Date:** 2026-07-02
 

@@ -7,40 +7,40 @@ import? "contractile.just"
 default:
     @just --list
 
-# Install dependencies (Deno packages + wasm target for the core)
+# Install Bun dependencies + wasm target for the core
 setup:
-    deno task setup
+    bun install --frozen-lockfile
     rustup target add wasm32-unknown-unknown || true
 
 # Build the Rust core to WASM for the browser
 build-wasm:
-    deno task build:wasm
+    bun run build:wasm
 
-# Build the project (ReScript compile + esbuild web bundle)
-# Depends on build-wasm: esbuild resolves web/wasm/nexia_core.js when it bundles.
+# Build the project (ReScript compile + Bun web bundle)
+# Depends on build-wasm: the bundler resolves web/wasm/nexia_core.js.
 build: build-wasm
-    deno task build
+    bun run build
 
 # Run all tests (Rust core + UI)
 # Depends on build: the UI tests import the generated *.res.js and the wasm
 # bindings, so a clean checkout cannot go straight to `just test` without them.
 # Both builds are incremental — a warm no-op costs well under a second.
 test: build
-    deno task test
+    bun run test
 
 # Rust core tests only — no build step, for a tight inner loop
 test-rust:
-    deno task test:rust
+    bun run test:rust
 
 # Run the development server (http://localhost:5173)
 run:
-    deno task dev
+    bun run dev
 
-# Static checks — Deno lint, rustfmt, clippy
+# Static checks — Biome, rustfmt, clippy
 # Mirrors rust-ci.yml exactly: --all-targets --features wasm, run from the
 # workspace root. A narrower clippy here would pass locally and fail in CI.
 check:
-    deno lint
+    bun run lint
     cargo fmt --check
     cargo clippy --all-targets --features wasm -- -D warnings
 
@@ -87,7 +87,7 @@ doctor:
     @echo "Checking required tools..."
     @command -v just >/dev/null 2>&1 && echo "  [OK] just" || echo "  [FAIL] just not found"
     @command -v git >/dev/null 2>&1 && echo "  [OK] git" || echo "  [FAIL] git not found"
-    @command -v deno >/dev/null 2>&1 && echo "  [OK] deno" || echo "  [FAIL] deno not found (need Deno 2.x)"
+    @command -v bun >/dev/null 2>&1 && echo "  [OK] bun" || echo "  [FAIL] bun not found (need Bun 1.3+)"
     @command -v cargo >/dev/null 2>&1 && echo "  [OK] cargo" || echo "  [FAIL] cargo not found (need Rust stable)"
     @echo "Checking the WASM toolchain (the browser build depends on it)..."
     @rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \

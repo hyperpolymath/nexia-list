@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# Product CI (UI/web): compiles the ReScript UI under Deno, builds the wasm
+# Product CI (UI/web): compiles the ReScript UI under Bun, builds the wasm
 # core, runs the UI + contract tests, and produces the web bundle.
 name: ui-ci
 
@@ -19,16 +19,16 @@ concurrency:
 
 jobs:
   build-test:
-    name: rescript + wasm + deno test + bundle
+    name: rescript + wasm + bun test + bundle
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Deno
+      - name: Install Bun
         run: |
-          curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$HOME/.deno" sh -s v2.9.1
-          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
       - name: Install stable Rust with wasm target
         run: |
@@ -47,20 +47,20 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: command -v wasm-bindgen >/dev/null || cargo install wasm-bindgen-cli --version 0.2.126 --locked
 
-      - name: Install JS dependencies (Deno-only, npm registry)
-        run: deno task setup
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
 
       - name: Compile ReScript
-        run: deno task build:res
+        run: bun run build:res
 
       - name: Build wasm core
-        run: deno task build:wasm
+        run: bun run build:wasm
 
       - name: UI + contract tests
-        run: deno task test:ui
+        run: bun run test:ui
 
       - name: Bundle web app
-        run: deno task build:web
+        run: bun run build:web
 
       - name: Lint
-        run: deno lint
+        run: bun run lint

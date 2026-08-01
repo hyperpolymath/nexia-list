@@ -97,7 +97,7 @@ Two commitments make it safe and humane:
 - **Build, don't embed.** A focused interpreter (rather than a general Rust
   Lisp crate) because the whole point is deep notebook-as-data interop and a
   strict browser sandbox — a general embed fights both. No new npm deps
-  (Deno-only MUST); implemented in Rust/WASM (no new TS/Python/Go); MPL-2.0.
+  (Bun-only MUST); implemented in Rust/WASM (no new TS/Python/Go); MPL-2.0.
 
 ### Subsumes, does not replace
 
@@ -196,6 +196,6 @@ rules are λδ expressions.
 ## Relation to other decisions
 
 - Builds on **ADR-0001** (Rust core → WASM, single source of truth).
-- Honours **ADR-0002** (Deno-only): the interpreter is homegrown Rust, no new
+- Honours **ADR-0004** (Bun-only): the interpreter is homegrown Rust, no new
   JS package-manager surface.
 - Respects the `INTENT.contractile` North Star and architectural invariants.

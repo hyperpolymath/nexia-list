@@ -19,21 +19,33 @@ type delta = {
 @module("../../../web/wasm/nexia_core.js")
 external initWasm: string => promise<unit> = "default"
 
+@module("../../../web/wasm/nexia_core.js")
+external lambdadeltaEvalRaw: string => string = "lambdadeltaEval"
+
 @module("../../../web/wasm/nexia_core.js") @new
 external makeNotebook: string => t = "WasmNotebook"
 
 @module("../../../web/wasm/nexia_core.js") @scope("WasmNotebook")
 external fromJsonRaw: string => t = "from_json"
 
+@send external evalLambdadeltaRaw: (t, string) => string = "evalLambdadelta"
+@send external evalFormulaRaw: (t, noteId, string) => string = "evalFormula"
+@send external nameRaw: t => string = "name"
+@send external setNameRaw: (t, string) => unit = "set_name"
+@send external lenRaw: t => int = "len"
+@send external isEmptyRaw: t => bool = "is_empty"
 @send external createNoteRaw: (t, string) => note = "create_note"
 @send external createNoteAtRaw: (t, string, float, float) => note = "create_note_at"
+@send external getNoteRaw: (t, noteId) => option<note> = "get_note"
 @send external updateTitleRaw: (t, noteId, string) => note = "update_title"
 @send external updateContentRaw: (t, noteId, string) => delta = "update_content"
 @send external moveNoteRaw: (t, noteId, float, float) => note = "move_note"
 @send external resizeNoteRaw: (t, noteId, float, float) => note = "resize_note"
+@send external setAttributeRaw: (t, noteId, string, string) => note = "set_attribute"
 @send external deleteNoteRaw: (t, noteId) => delta = "delete_note"
 @send external linkRaw: (t, noteId, noteId) => delta = "link"
 @send external unlinkRaw: (t, noteId, noteId) => delta = "unlink"
+@send external backlinksRaw: (t, noteId) => array<noteId> = "backlinks"
 @send external searchRaw: (t, string) => array<noteId> = "search"
 @send external snapshotRaw: t => notebook = "snapshot"
 @send external toJsonRaw: t => string = "to_json"
@@ -105,19 +117,53 @@ let tryDelta = (operation: unit => delta): result<delta, string> =>
   | e => Error(errorMessage(e, "Link operation failed"))
   }
 
+let tryString = (operation: unit => string, fallback: string): result<string, string> =>
+  try Ok(operation()) catch {
+  | e => Error(errorMessage(e, fallback))
+  }
+
+/// Evaluate pure LambdaDelta without notebook host bindings.
+let lambdadeltaEval = (source: string): result<string, string> =>
+  tryString(() => lambdadeltaEvalRaw(source), "LambdaDelta evaluation failed")
+
+/// Evaluate LambdaDelta with the current notebook host. Programs may mutate
+/// the core notebook; callers that keep a read model should refresh snapshot().
+let evalLambdadelta = (source: string): result<string, string> =>
+  tryString(() => evalLambdadeltaRaw(instance(), source), "Notebook LambdaDelta evaluation failed")
+
+/// Evaluate a read-only formula with `self` bound to the selected note.
+let evalFormula = (id: noteId, source: string): result<string, string> =>
+  tryString(() => evalFormulaRaw(instance(), id, source), "LambdaDelta formula evaluation failed")
+
+let name = (): string => nameRaw(instance())
+let setName = (name: string): unit => setNameRaw(instance(), name)
+let len = (): int => lenRaw(instance())
+let isEmpty = (): bool => isEmptyRaw(instance())
+
 let createNote = (title: string) => tryNote(() => createNoteRaw(instance(), title))
 let createNoteAt = (title: string, x: float, y: float) =>
   tryNote(() => createNoteAtRaw(instance(), title, x, y))
+let getNote = (id: noteId): result<option<note>, string> =>
+  try Ok(getNoteRaw(instance(), id)) catch {
+  | e => Error(errorMessage(e, "Could not read note"))
+  }
 let updateTitle = (id: noteId, title: string) => tryNote(() => updateTitleRaw(instance(), id, title))
 let updateContent = (id: noteId, content: string) =>
   tryDelta(() => updateContentRaw(instance(), id, content))
 let moveNote = (id: noteId, x: float, y: float) => tryNote(() => moveNoteRaw(instance(), id, x, y))
 let resizeNote = (id: noteId, width: float, height: float) =>
   tryNote(() => resizeNoteRaw(instance(), id, width, height))
+let setAttribute = (id: noteId, key: string, jsonValue: string) =>
+  tryNote(() => setAttributeRaw(instance(), id, key, jsonValue))
 
 let deleteNote = (id: noteId) => tryDelta(() => deleteNoteRaw(instance(), id))
 let link = (fromId: noteId, toId: noteId) => tryDelta(() => linkRaw(instance(), fromId, toId))
 let unlink = (fromId: noteId, toId: noteId) => tryDelta(() => unlinkRaw(instance(), fromId, toId))
+
+let backlinks = (id: noteId): result<array<noteId>, string> =>
+  try Ok(backlinksRaw(instance(), id)) catch {
+  | e => Error(errorMessage(e, "Could not read backlinks"))
+  }
 
 let search = (query: string): array<noteId> => searchRaw(instance(), query)
 

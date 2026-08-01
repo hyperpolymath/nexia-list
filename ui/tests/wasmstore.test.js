@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
-// Bun test wrapper: initializes the wasm core, then runs the ReScript TEA
-// update tests (UpdateTests.res). Requires `bun run build:res` and
-// `bun run build:wasm` first.
+// Exercises the ReScript WasmStore facade, rather than calling wasm-bindgen's
+// generated JavaScript API directly.
 
 import initWasm from "../../web/wasm/nexia_core.js";
-import { runAll } from "./UpdateTests.res.js";
+import { runAll } from "./WasmStoreTests.res.js";
 import { test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
@@ -13,6 +12,6 @@ const wasmBytes = await readFile(
 );
 await initWasm({ module_or_path: wasmBytes });
 
-test("TEA update delegates to the wasm core", () => {
+test("WasmStore binds the complete Rust/WASM API", () => {
   runAll();
 });

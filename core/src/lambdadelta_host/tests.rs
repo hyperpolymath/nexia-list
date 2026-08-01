@@ -5,6 +5,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use proptest::prelude::*;
 use uuid::Uuid;
 
 use super::register;
@@ -207,4 +208,27 @@ fn formula_binds_self_and_is_read_only() {
     );
     assert!(matches!(m, Err(LdError::Unbound(_))));
     assert_eq!(id_of(&nb, "Alpha"), Some(a)); // title unchanged
+}
+
+proptest! {
+    /// Formula evaluation preserves the complete serialized notebook state for
+    /// arbitrary source text, whether reading succeeds, errors, or exhausts its
+    /// deliberately small budget. This proves the current formula entry point's
+    /// non-mutation contract; it is not a general plugin-capability proof.
+    #[test]
+    fn arbitrary_formula_source_cannot_mutate_notebook(src in ".{0,128}") {
+        let (nb, _i) = setup();
+        let Some(a) = id_of(&nb, "Alpha") else { return Ok(()) };
+        let before = serde_json::to_value(&*nb.borrow()).unwrap();
+
+        let _ = super::eval_formula(
+            nb.clone(),
+            &a,
+            &src,
+            Budget::with_limits(1_000, 64),
+        );
+
+        let after = serde_json::to_value(&*nb.borrow()).unwrap();
+        prop_assert_eq!(before, after);
+    }
 }

@@ -2,7 +2,7 @@
 /// Pure geometry for keyboard navigation on the spatial canvas: given a
 /// focused note and a direction, find the nearest note that lies (mostly) in
 /// that direction. Kept side-effect-free so it is unit-testable under
-/// `deno test` without a DOM.
+/// `bun test` without a DOM.
 
 open Types
 
