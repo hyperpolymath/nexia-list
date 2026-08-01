@@ -24,7 +24,7 @@
 # ─── ui/ is a pre-existing ReScript frontend, predates the estate ban ────
 #
 # ReScript is banned estate-wide in favour of AffineScript, but this repo's
-# UI (ui/src/*.res, ui/tests/*.res, 14 files) predates that policy and
+# UI (ui/src/*.res, ui/tests/*.res, 17 files) predates that policy and
 # hasn't been migrated yet. Grandfathered here, same as stapeln's
 # equivalent carve-out, until the migration lands.
 cicd_rules/banned_language_file:ui/src/Dispatcher.res
@@ -43,3 +43,4 @@ cicd_rules/banned_language_file:ui/src/store/WasmStore.res
 cicd_rules/banned_language_file:ui/tests/GraphLayoutTests.res
 cicd_rules/banned_language_file:ui/tests/NavigationTests.res
 cicd_rules/banned_language_file:ui/tests/UpdateTests.res
+cicd_rules/banned_language_file:ui/tests/WasmStoreTests.res
