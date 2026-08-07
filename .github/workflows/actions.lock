@@ -11,10 +11,10 @@ workflows:
         - 'actions/configure-pages@v6.0.0'
         - 'actions/deploy-pages@v5.0.0'
         - 'actions/upload-pages-artifact@v5.0.0'
-        - 'haskell-actions/setup@v2.11.0'
+        - 'haskell-actions/setup@v2.12.0'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.4'
+        - 'github/codeql-action@v4.37.5'
     '.github/workflows/dogfood-gate.yml':
         - 'actions/checkout@v7.0.1'
         - 'hyperpolymath/a2ml-ecosystem@main'
@@ -25,7 +25,7 @@ workflows:
         - 'actions/github-script@v9.0.0'
         - 'actions/upload-artifact@v7.0.1'
         - 'erlef/setup-beam@v1.24.1'
-        - 'github/codeql-action@v4.37.4'
+        - 'github/codeql-action@v4.37.5'
     '.github/workflows/instant-sync.yml':
         - 'peter-evans/repository-dispatch@v4.0.1'
     '.github/workflows/mirror.yml': []
@@ -91,14 +91,14 @@ dependencies:
         commit: 'sha1-54075bcc5e249e4758d363f27d099f55d843f124'
         owner_id: 47606891
         repo_id: 331103973
-    'github/codeql-action@v4.37.4':
-        ref: 'v4.37.4'
-        commit: 'sha1-f205ea1c3313d32999d8d6a48b4f6530d4437b38'
+    'github/codeql-action@v4.37.5':
+        ref: 'v4.37.5'
+        commit: 'sha1-d1ba80a13dd99fba24a470575428917156a28b43'
         owner_id: 9919
         repo_id: 259445878
-    'haskell-actions/setup@v2.11.0':
-        ref: 'v2.11.0'
-        commit: 'sha1-cd0d9bdd65b20557f41bea4dbe43d0b5fbbfe553'
+    'haskell-actions/setup@v2.12.0':
+        ref: 'v2.12.0'
+        commit: 'sha1-6037f33647c3f17758a2356c80fc4a53d7e0685d'
         owner_id: 75048950
         repo_id: 623796603
     'hyperpolymath/a2ml-ecosystem@main':
