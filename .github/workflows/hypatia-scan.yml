@@ -243,7 +243,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
            github.event.pull_request.head.repo.fork != true)
-        uses: github/codeql-action/upload-sarif@v4.37.5
+        uses: github/codeql-action/upload-sarif@v4.37.6
         with:
           sarif_file: hypatia.sarif
           # Distinct category so Hypatia results coexist with CodeQL's
