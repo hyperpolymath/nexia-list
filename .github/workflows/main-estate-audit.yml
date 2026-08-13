@@ -1,6 +1,9 @@
+# SPDX-License-Identifier: MPL-2.0
 name: Central Estate CI/CD Audit
 
 on:
+permissions:
+  contents: read
   push:
     branches: [ "main" ]
   pull_request:

@@ -1,1 +1,4 @@
 .hypatia-ignore
+
+.githooks/
+flake.nix
