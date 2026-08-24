@@ -1,19 +1,16 @@
-<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
-<!-- Last updated: 2026-07-17 -->
+== Nexia-List — Project Topology
 
-# Nexia-List — Project Topology
+=== System Architecture
 
-## System Architecture
+Nexia-List is *web-first*: the browser is the primary target, running
+the real Rust core compiled to WebAssembly. The core carries the *λδ
+(LambdaDelta)* substrate — a homoiconic Clojure-flavoured Lisp built
+in-tree, not vendored — which is the single largest subsystem in the
+core. The desktop shell is optional and depends on an *external* sibling
+checkout of `+hyperpolymath/gossamer+`; it is intentionally not built in
+this repo’s CI.
 
-Nexia-List is **web-first**: the browser is the primary target, running the real
-Rust core compiled to WebAssembly. The core carries the **λδ (LambdaDelta)**
-substrate — a homoiconic Clojure-flavoured Lisp built in-tree, not vendored —
-which is the single largest subsystem in the core. The desktop shell is optional
-and depends on an **external** sibling checkout of `hyperpolymath/gossamer`; it
-is intentionally not built in this repo's CI.
-
-```
+....
                         ┌─────────────────────────────────────────┐
                         │              USER INTERFACE             │
                         │     (Note list / Editor / Canvas)       │
@@ -69,16 +66,16 @@ is intentionally not built in this repo's CI.
                         │  rust-ci.yml    ui-ci.yml               │
                         │  .machine_readable/  0-AI-MANIFEST.a2ml │
                         └─────────────────────────────────────────┘
-```
+....
 
-Future (not yet implemented, kept out of the diagram deliberately): petgraph
-graph engine, tantivy full-text search, Nickel schemas, mobile targets, and the
-FL×DT intelligence modules (`index.rs`, `edge.rs`, `reason.rs`, `layout.rs`,
-`trigger.rs`) described in [docs/design/](docs/design/).
+Future (not yet implemented, kept out of the diagram deliberately):
+petgraph graph engine, tantivy full-text search, Nickel schemas, mobile
+targets, and the FL×DT intelligence modules (`+index.rs+`, `+edge.rs+`,
+`+reason.rs+`, `+layout.rs+`, `+trigger.rs+`) described in docs/design/.
 
-## Completion Dashboard
+=== Completion Dashboard
 
-```
+....
 COMPONENT                          STATUS              NOTES
 ─────────────────────────────────  ──────────────────  ─────────────────────────────────
 PRODUCT
@@ -143,34 +140,36 @@ OVERALL:                            ███████░░░  ~65%   Core 
                                                        has MOVED off the WASM bridge and
                                                        onto the UI surface: continuing
                                                        λδ doors (L2→L3)
-```
+....
 
-## Key Dependencies
+=== Key Dependencies
 
-```
+....
 Rust Core (incl. λδ) ──► WASM bundle ──► ReScript UI ──► Web bundle (web/dist/)
     │                                              │
     ▼                                              ▼
 JSON storage ──► IndexedDB / file download   (optional) Gossamer shell
-```
+....
 
-The wasm-bindgen **CLI must match the wasm-bindgen crate version in
-`Cargo.lock` exactly** (`just doctor` checks this); a mismatch fails the browser
-build with a confusing schema error.
+The wasm-bindgen *CLI must match the wasm-bindgen crate version in
+`+Cargo.lock+` exactly* (`+just doctor+` checks this); a mismatch fails
+the browser build with a confusing schema error.
 
-## Update Protocol
+=== Update Protocol
 
 This file is maintained by both humans and AI agents. When updating:
 
-1. **After completing a component**: Change its bar and percentage
-2. **After adding a component**: Add a new row in the appropriate section
-3. **After architectural changes**: Update the ASCII diagram
-4. **Date**: Update the `Last updated` comment at the top of this file
+[arabic]
+. *After completing a component*: Change its bar and percentage
+. *After adding a component*: Add a new row in the appropriate section
+. *After architectural changes*: Update the ASCII diagram
+. *Date*: Update the `+Last updated+` comment at the top of this file
 
-Progress bars use: `█` (filled) and `░` (empty), 10 characters wide.
-Percentages: 0%, 10%, 20%, ... 100% (in 10% increments).
+Progress bars use: `+█+` (filled) and `+░+` (empty), 10 characters wide.
+Percentages: 0%, 10%, 20%, … 100% (in 10% increments).
 
-**Percentages are judgement, LOC and test counts are not.** When you revise a
-row, re-derive the countable facts rather than copying them forward — this file
-understated the core for two weeks because the λδ merges (#35, #36, #43) landed
-without a dashboard update, and downstream docs inherited the stale figures.
+*Percentages are judgement, LOC and test counts are not.* When you
+revise a row, re-derive the countable facts rather than copying them
+forward — this file understated the core for two weeks because the λδ
+merges (#35, #36, #43) landed without a dashboard update, and downstream
+docs inherited the stale figures.

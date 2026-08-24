@@ -1,0 +1,151 @@
+== Contributing to Nexia-List
+
+=== Development Setup
+
+Prerequisites: https://bun.sh/[Bun] 1.3+ and
+https://www.rust-lang.org/tools/install[Rust] stable (plus the
+`+wasm32-unknown-unknown+` target for WASM builds). Bun is the only JS
+toolchain — do not use npm/deno/yarn/pnpm. A Guix environment is
+provided via `+guix.scm+` (`+guix shell+`) if you prefer reproducible
+shells.
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/hyperpolymath/nexia-list.git
+cd nexia-list
+
+# Install dependencies
+bun install --frozen-lockfile
+
+# Run the development server (http://localhost:5173)
+bun run dev
+
+# Build (ReScript + web bundle)
+bun run build
+
+# Verify setup
+bun run lint
+bun run test    # Rust core tests + UI tests
+----
+
+Equivalent `+just+` recipes exist: `+just setup+`, `+just build+`,
+`+just test+`, `+just run+`, `+just check+`.
+
+==== Repository Structure
+
+....
+nexia-list/
+├── core/                # Rust core — notes, backlinks, search, JSON storage
+├── ui/                  # ReScript TEA-style UI (@rescript/react)
+├── scripts/             # Bun build/dev scripts
+├── web/                 # Browser entry + bundle output (dist/)
+├── desktop/             # OPTIONAL Gossamer shell (external sibling checkout;
+│                        # not built in this repo's CI)
+├── docs/                # ADRs, reports
+│   └── adr/             # Architecture decision records
+├── tests/               # Cross-cutting tests
+├── .well-known/         # Protocol files (ai.txt, security.txt, humans.txt)
+├── .machine_readable/   # Contractiles, STATE/META/ECOSYSTEM checkpoints,
+│                        # and governance metadata (see below)
+├── .github/             # GitHub config and workflows
+├── CHANGELOG.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md      # This file
+├── LICENSE
+├── MAINTAINERS.adoc
+├── README.adoc
+├── ROADMAP.adoc
+├── SECURITY.md
+├── package.json         # Bun tasks and dependencies
+├── bun.lock             # Exact JavaScript dependency graph
+└── Justfile             # Task runner recipes
+....
+
+Governance and invariants are machine-readable: see
+link:.machine_readable/[`+.machine_readable/+`] (in particular
+`+MUST.contractile+` and `+INTENT.contractile+`) and
+link:0-AI-MANIFEST.a2ml[`+0-AI-MANIFEST.a2ml+`].
+
+'''''
+
+=== How to Contribute
+
+==== Reporting Bugs
+
+*Before reporting*: 1. Search existing issues 2. Check if it’s already
+fixed in `+main+` 3. Determine which perimeter the bug affects
+
+*When reporting*:
+
+Use the link:.github/ISSUE_TEMPLATE/bug_report.md[bug report template]
+and include:
+
+* Clear, descriptive title
+* Environment details (OS, versions, toolchain)
+* Steps to reproduce
+* Expected vs actual behaviour
+* Logs, screenshots, or minimal reproduction
+
+==== Suggesting Features
+
+*Before suggesting*: 1. Check the link:ROADMAP.adoc[roadmap] 2. Search
+existing issues and discussions 3. Consider which perimeter the feature
+belongs to
+
+*When suggesting*:
+
+Use the link:.github/ISSUE_TEMPLATE/feature_request.md[feature request
+template] and include:
+
+* Problem statement (what pain point does this solve?)
+* Proposed solution
+* Alternatives considered
+* Which perimeter this affects
+
+==== Your First Contribution
+
+Look for issues labelled:
+
+* https://github.com/hyperpolymath/nexia-list/labels/good%20first%20issue[`+good first issue+`]
+— Simple Perimeter 3 tasks
+* https://github.com/hyperpolymath/nexia-list/labels/help%20wanted[`+help wanted+`]
+— Community help needed
+* https://github.com/hyperpolymath/nexia-list/labels/documentation[`+documentation+`]
+— Docs improvements
+* https://github.com/hyperpolymath/nexia-list/labels/perimeter-3[`+perimeter-3+`]
+— Community sandbox scope
+
+'''''
+
+=== Development Workflow
+
+==== Branch Naming
+
+....
+docs/short-description       # Documentation (P3)
+test/what-added              # Test additions (P3)
+feat/short-description       # New features (P2)
+fix/issue-number-description # Bug fixes (P2)
+refactor/what-changed        # Code improvements (P2)
+security/what-fixed          # Security fixes (P1-2)
+....
+
+==== Commit Messages
+
+We follow https://www.conventionalcommits.org/[Conventional Commits]:
+
+....
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+....
+
+'''''
+
+=== Questions?
+
+See MAINTAINERS.adoc for who to contact, and SECURITY.md for reporting
+vulnerabilities.

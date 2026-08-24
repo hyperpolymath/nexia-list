@@ -1,0 +1,19 @@
+== LLM Warmup — nexia-list (Developer)
+
+=== What is nexia-list?
+
+See README.adoc for overview.
+
+=== Key Commands
+
+* `+just setup+` — set up development environment
+* `+just build+` — build the project
+* `+just test+` — run tests
+* `+just doctor+` — diagnose issues
+* `+just run+` — start the dev server (http://localhost:5173)
+
+=== Quick Context
+
+* License: MPL-2.0
+* Part of hyperpolymath ecosystem
+* See EXPLAINME.adoc for architecture
