@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
+# This workflow is managed by gh actions-lock.
 # Product CI (Rust): the load-bearing build/test workflow for core/.
 # desktop/ is intentionally NOT built here — it needs a sibling checkout of
 # hyperpolymath/gossamer (see desktop/README.md) and is excluded from the

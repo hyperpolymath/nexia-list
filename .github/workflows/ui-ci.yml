@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
+# This workflow is managed by gh actions-lock.
 # Product CI (UI/web): compiles the ReScript UI under Bun, builds the wasm
 # core, runs the UI + contract tests, and produces the web bundle.
 name: ui-ci
