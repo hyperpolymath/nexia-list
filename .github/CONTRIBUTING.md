@@ -47,9 +47,9 @@ Equivalent `just` recipes exist: `just` `setup`, `just` `build`, `just`
     ├── .machine_readable/   # Contractiles, STATE/META/ECOSYSTEM checkpoints,
     │                        # and governance metadata (see below)
     ├── .github/             # GitHub config and workflows
+    │   └── CONTRIBUTING.md  # This file
     ├── CHANGELOG.md
     ├── CODE_OF_CONDUCT.md
-    ├── CONTRIBUTING.md      # This file
     ├── LICENSE
     ├── MAINTAINERS.adoc
     ├── README.adoc
