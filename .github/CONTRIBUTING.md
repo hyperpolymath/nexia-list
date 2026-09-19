@@ -60,9 +60,9 @@ Equivalent `just` recipes exist: `just` `setup`, `just` `build`, `just`
     └── Justfile             # Task runner recipes
 
 Governance and invariants are machine-readable: see
-[`.machine_readable/`](.machine_readable/) (in particular
+[`.machine_readable/`](../.machine_readable/) (in particular
 `MUST.contractile` and `INTENT.contractile`) and
-[`0-AI-MANIFEST.a2ml`](0-AI-MANIFEST.a2ml).
+[`0-AI-MANIFEST.a2ml`](../0-AI-MANIFEST.a2ml).
 
 ’’’’’
 
@@ -90,7 +90,7 @@ include:
 
 ### Suggesting Features
 
-**Before suggesting**: 1. Check the [roadmap](ROADMAP.adoc) 2. Search
+**Before suggesting**: 1. Check the [roadmap](../ROADMAP.adoc) 2. Search
 existing issues and discussions 3. Consider which perimeter the feature
 belongs to
 
