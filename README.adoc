@@ -262,7 +262,7 @@ bun run test
 
 == Contributing
 
-Contributions welcome! Please read our link:CONTRIBUTING.md[Contributing Guide] first.
+Contributions welcome! Please read our link:.github/CONTRIBUTING.md[Contributing Guide] first.
 
 === Development Principles
 
