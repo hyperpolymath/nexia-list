@@ -64,7 +64,7 @@ Machine-checkable governance is expressed as data, not prose:
 
 ## Release & packaging
 
-Nexia-List is a **static web bundle** (HTML/JS/CSS + WASM core) with no server-side component — see [QUICKSTART-MAINTAINER.adoc](https://github.com/hyperpolymath/nexia-list/blob/main/QUICKSTART-MAINTAINER.adoc). Build with `just build` + `just build-wasm` (output `web/dist/`); Guix via `guix build -f guix.scm`; container via `stapeln.toml`. The [CHANGELOG.md](https://github.com/hyperpolymath/nexia-list/blob/main/CHANGELOG.md) is generated from conventional commits (Keep a Changelog / SemVer).
+Nexia-List is a **static web bundle** (HTML/JS/CSS + WASM core) with no server-side component — see [QUICKSTART-MAINTAINER.adoc](https://github.com/hyperpolymath/nexia-list/blob/main/QUICKSTART-MAINTAINER.adoc). Build with `just build` + `just build-wasm` (output `web/dist/`); Guix via `guix build -f build/guix.scm`; container via `stapeln.toml`. The [CHANGELOG.md](https://github.com/hyperpolymath/nexia-list/blob/main/CHANGELOG.md) is generated from conventional commits (Keep a Changelog / SemVer).
 
 ## Wiki sync
 

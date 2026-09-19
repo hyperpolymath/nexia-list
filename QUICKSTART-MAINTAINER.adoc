@@ -45,7 +45,7 @@ Output: `web/dist/` (static bundle).
 
 [source,bash]
 ----
-guix build -f guix.scm
+guix build -f build/guix.scm
 ----
 
 === Manual Package
