@@ -9,12 +9,12 @@ workflows:
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'actions/configure-pages@v6.0.0'
-        - 'actions/deploy-pages@v5.0.0'
+        - 'actions/deploy-pages@v5.0.1'
         - 'actions/upload-pages-artifact@v5.0.0'
         - 'haskell-actions/setup@v2.12.0'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.8'
+        - 'github/codeql-action@v4.38.0'
     '.github/workflows/dogfood-gate.yml':
         - 'actions/checkout@v7.0.1'
         - 'hyperpolymath/a2ml-ecosystem@main'
@@ -25,14 +25,14 @@ workflows:
         - 'actions/github-script@v9.0.0'
         - 'actions/upload-artifact@v7.0.1'
         - 'erlef/setup-beam@v1.24.1'
-        - 'github/codeql-action@v4.37.8'
+        - 'github/codeql-action@v4.38.0'
     '.github/workflows/instant-sync.yml':
         - 'peter-evans/repository-dispatch@v4.0.1'
     '.github/workflows/label-triage.yml': []
     '.github/workflows/labels.yml': []
     '.github/workflows/mirror.yml': []
     '.github/workflows/push-email-notify.yml':
-        - 'hyperpolymath/smtp-notify-action@v0.2.0'
+        - 'hyperpolymath/smtp-notify-action@v0.3.0'
     '.github/workflows/rust-ci.yml':
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
@@ -56,9 +56,9 @@ dependencies:
         commit: 'sha1-45bfe0192ca1faeb007ade9deae92b16b8254a0d'
         owner_id: 44036562
         repo_id: 513659658
-    'actions/deploy-pages@v5.0.0':
-        ref: 'v5.0.0'
-        commit: 'sha1-cd2ce8fcbc39b97be8ca5fce6e763baed58fa128'
+    'actions/deploy-pages@v5.0.1':
+        ref: 'v5.0.1'
+        commit: 'sha1-368f82528645a54fb793d4d04e342629a3f51346'
         owner_id: 44036562
         repo_id: 438112499
     'actions/github-script@v9.0.0':
@@ -88,9 +88,9 @@ dependencies:
         commit: 'sha1-54075bcc5e249e4758d363f27d099f55d843f124'
         owner_id: 47606891
         repo_id: 331103973
-    'github/codeql-action@v4.37.8':
-        ref: 'v4.37.8'
-        commit: 'sha1-db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28'
+    'github/codeql-action@v4.38.0':
+        ref: 'v4.38.0'
+        commit: 'sha1-b96794f015dfd88f77b49b1c93e0fa7110f94c63'
         owner_id: 9919
         repo_id: 259445878
     'haskell-actions/setup@v2.12.0':
@@ -100,17 +100,17 @@ dependencies:
         repo_id: 623796603
     'hyperpolymath/a2ml-ecosystem@main':
         ref: 'main'
-        commit: 'sha1-aa4b836bd969df2bc58128cb8e3d20bbc88d5e79'
+        commit: 'sha1-ed83d6927e8fb21431e403dbf6d7a4af96772746'
         owner_id: 6759885
         repo_id: 1275649586
     'hyperpolymath/k9-ecosystem@main':
         ref: 'main'
-        commit: 'sha1-89f3c2702f4f650a92aa7411502f38da06abd562'
+        commit: 'sha1-c1a34884054fabf0e9de81dbf68f4ba7874e85f1'
         owner_id: 6759885
         repo_id: 1275650185
-    'hyperpolymath/smtp-notify-action@v0.2.0':
-        ref: 'v0.2.0'
-        commit: 'sha1-ede1191ef6ff3ac02c4f4d9efdf837ee517e11d7'
+    'hyperpolymath/smtp-notify-action@v0.3.0':
+        ref: 'v0.3.0'
+        commit: 'sha1-22e7bdb322c430c1d0dac6b3bb307f4bb139d0be'
         owner_id: 6759885
         repo_id: 1352485172
     'peter-evans/repository-dispatch@v4.0.1':
