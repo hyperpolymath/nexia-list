@@ -8,6 +8,13 @@ updates:
       actions:
         patterns:
           - "*"
+    ignore:
+      # v4.38.1 fails GitHub workflow-startup validation estate-wide
+      # (codeql.yml/hypatia-scan.yml startup_failure on every repo that merged
+      # the grouped bump; v4.38.0 is green). Rollback: PR #100. Revisit once
+      # 4.38.1 is cleared upstream.
+      - dependency-name: "github/codeql-action"
+        versions: ["4.38.1"]
   # Rust core crate. NOTE: deliberately no entry for /desktop — its path
   # dependency on an external sibling checkout (../../gossamer) would make
   # dependabot error.
