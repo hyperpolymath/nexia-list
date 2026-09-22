@@ -67,5 +67,5 @@ requirement
 ----
 bun run test        # cargo test (core) + bun test (UI/contract)
 bun run test:rust   # Rust only
-bun run test:ui     # UI/contract only (needs build:res + build:wasm first)
+bun run test:ui     # wasm/UI contract tests (needs build:wasm first)
 ----

@@ -50,7 +50,7 @@ Today's tools are strong at capture and link and effectively broken at **reason*
 |---|---|---|
 | Core engine | Rust (serde, uuid, chrono) | Note/Notebook model, backlinks reverse index, substring search, JSON storage |
 | Browser bridge | wasm-bindgen (wired) | Compiles the Rust core to a single WASM bundle that *is* the engine, client-side; loaded at boot and covered by a CI contract test |
-| UI | ReScript 11 + hand-rolled TEA on `@rescript/react`, Bun bundler | Model / Msg / Update / View; type-safe functional UI |
+| UI | AffineScript + hand-rolled TEA (Model/Msg/Update/View), `affinescript check` in CI | Type-safe functional UI; web emit pending upstream |
 | Substrate (built) | λδ (LambdaDelta) — homoiconic Lisp in the Rust core | Notebook-as-data; multimethods on `:type`/`:op`; sandboxed Budget; opt-in, invisible by default. The interpreter, macros, multimethods, prelude, and notebook host all exist in `core/src/lambdadelta/` |
 | Desktop/mobile shell (optional) | [Gossamer](https://github.com/hyperpolymath/gossamer) — external sibling | Thin webview wrapping the identical web bundle; not built in this repo's CI |
 
