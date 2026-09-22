@@ -16,15 +16,16 @@ setup:
 build-wasm:
     bun run build:wasm
 
-# Build the project (ReScript compile + Bun web bundle)
-# Depends on build-wasm: the bundler resolves web/wasm/nexia_core.js.
+# Build the project (= the wasm core). AffineScript UI web emit is pending
+# upstream — docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc.
 build: build-wasm
-    bun run build
+    @echo "wasm core built into web/wasm/ (UI bundling deferred, see decision doc)"
 
-# Run all tests (Rust core + UI)
-# Depends on build: the UI tests import the generated *.res.js and the wasm
-# bindings, so a clean checkout cannot go straight to `just test` without them.
-# Both builds are incremental — a warm no-op costs well under a second.
+
+# Run all tests (Rust core + UI/wasm contract)
+# Depends on build: the four live bun suites import the wasm bindings from
+# web/wasm/, so a clean checkout cannot go straight to `just test` without
+# building first. Builds are incremental — a warm no-op is near-instant.
 test: build
     bun run test
 
@@ -37,9 +38,12 @@ test-rust:
 ld-new name:
     bun scripts/ld-mint.js {{name}}
 
-# Run the development server (http://localhost:5173)
+# Dev server for the web UI — RETIRED with the ReScript port. The AffineScript
+# compiler has no web UI emitter yet; bundling resumes later (see
+# docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc). Until then the inner
+# loop is `just build` -> `just test` (wasm core + contract suites).
 run:
-    bun run dev
+    @echo "just run: no web UI dev server (AffineScript emit pending - see docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc)" && exit 1
 
 # Static checks — Biome, rustfmt, clippy
 # Mirrors rust-ci.yml exactly: --all-targets --features wasm, run from the
