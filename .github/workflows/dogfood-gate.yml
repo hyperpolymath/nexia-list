@@ -1,12 +1,25 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
-# This workflow is managed by gh actions-lock.
-# This workflow is managed by gh actions-lock.
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # dogfood-gate.yml — Hyperpolymath Dogfooding Quality Gate
 # Validates that the repo uses hyperpolymath's own formats and tools.
 # Companion to static-analysis-gate.yml (security) — this is for format compliance.
+#
+# Provenance / CI-honesty status (issue #49, adopted 2026-09-22):
+#   Adopts the fixed template from hyperpolymath/rsr-template-repo, where the
+#   "checks that cannot fail" were repaired at their origin. Gate tiers follow
+#   the upstream taxonomy — 🔴 GATE (blocks), 🟡 CHECK (fails on real errors),
+#   ℹ️ ADVISORY (never gates, labelled):
+#     * empty-lint: 🔴 GATE — runs scripts/check-invisible-characters.sh and
+#       EXITS 1 on blocking (C0/NUL) findings; a scanner failure exits 2
+#       rather than silently passing. (Pre-fix: `set +e` + warnings only.)
+#     * groove-check: 🟡 CHECK — runs scripts/check-groove-manifest.sh; an
+#       invalid manifest EXITS 1. Advisories (missing manifest with server
+#       code) stay advisories and are labelled as such.
+#     * dogfood-summary: ℹ️ ADVISORY — never gates; labelled so.
+#   The gate-self-test job proves, on every run, that each gate can still fail:
+#   scripts/test-ci-honesty.sh runs the real gate logic against fail fixtures.
 name: Dogfood Gate
 
 on:
@@ -15,13 +28,33 @@ on:
   push:
     branches: [main, master]
 
+# Estate guardrail: cancel superseded runs; safe — read-only checks only.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: A2ML manifest validation
+  # Job 0: Gate honesty self-test — proves the gates can fail (issue #49)
+  # ---------------------------------------------------------------------------
+  gate-self-test:
+    name: "🔴 GATE: CI honesty self-test (fail fixtures)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Run the fail-fixture proofs
+        run: scripts/test-ci-honesty.sh
+
+  # ---------------------------------------------------------------------------
+  # Job 1: DEED manifest validation (REAL — kept as-is per issue #49 audit)
   # ---------------------------------------------------------------------------
   a2ml-validate:
     name: Validate DEED manifests
@@ -65,7 +98,7 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Job 2: K9 contract validation
+  # Job 2: K9 contract validation (REAL — kept as-is; skips when k9_count==0)
   # ---------------------------------------------------------------------------
   k9-validate:
     name: Validate K9 contracts
@@ -115,10 +148,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 3: Empty-linter — invisible character detection
+  # 🔴 GATE (adopted from rsr-template-repo): blocking findings fail the check;
+  # a scanner failure refuses rather than passing silently.
   # ---------------------------------------------------------------------------
   empty-lint:
-    name: Empty-linter (invisible characters)
+    name: "🔴 GATE: Empty-linter (invisible characters)"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -127,36 +163,46 @@ jobs:
       - name: Scan for invisible characters
         id: lint
         run: |
-          # Inline invisible character detection (from empty-linter's core patterns).
-          # Checks for: zero-width spaces, zero-width joiners, BOM, soft hyphens,
-          # non-breaking spaces, null bytes, and other invisible Unicode in source files.
-          set +e
-          PATTERNS='(*UTF)[\x00-\x08\x0B\x0C\x0E-\x1F\x{a0}\x{ad}\x{200b}-\x{200f}\x{202a}-\x{202f}\x{2060}\x{2066}-\x{2069}\x{feff}]'
-          find "$GITHUB_WORKSPACE" \
-            -not -path '*/.git/*' -not -path '*/node_modules/*' \
-            -not -path '*/.deno/*' -not -path '*/target/*' \
-            -not -path '*/_build/*' -not -path '*/deps/*' \
-            -not -path '*/external_corpora/*' -not -path '*/.lake/*' \
-            -type f \( -name '*.rs' -o -name '*.ex' -o -name '*.exs' -o -name '*.res' \
-              -o -name '*.js' -o -name '*.ts' -o -name '*.json' -o -name '*.toml' \
-              -o -name '*.yml' -o -name '*.yaml' -o -name '*.md' -o -name '*.adoc' \
-              -o -name '*.idr' -o -name '*.zig' -o -name '*.v' -o -name '*.jl' \
-              -o -name '*.gleam' -o -name '*.hs' -o -name '*.ml' -o -name '*.sh' \) \
-            -exec grep -aPl "$PATTERNS" {} + > /tmp/empty-lint-results.txt 2>/dev/null
-          EL_EXIT=$?
-          set -e
+          RESULTS_FILE="$RUNNER_TEMP/empty-lint-results.bin"
+          BLOCKING_FILE="$RUNNER_TEMP/empty-lint-blocking-results.bin"
+          if ! scripts/check-invisible-characters.sh \
+              "$GITHUB_WORKSPACE" "$RESULTS_FILE" "$BLOCKING_FILE"; then
+            echo "::error::Invisible-character scanner failed; refusing a partial pass"
+            exit 2
+          fi
 
-          FINDINGS=$(wc -l < /tmp/empty-lint-results.txt 2>/dev/null || echo 0)
+          FINDINGS=0
+          while IFS= read -r -d '' filepath; do
+            FINDINGS=$((FINDINGS + 1))
+            REL_PATH="${filepath#"$GITHUB_WORKSPACE"/}"
+            SAFE_PATH="${REL_PATH//'%'/'%25'}"
+            SAFE_PATH="${SAFE_PATH//$'\r'/'%0D'}"
+            SAFE_PATH="${SAFE_PATH//$'\n'/'%0A'}"
+            SAFE_PATH="${SAFE_PATH//':'/'%3A'}"
+            SAFE_PATH="${SAFE_PATH//','/'%2C'}"
+            echo "::warning file=${SAFE_PATH}::Invisible Unicode or C0 characters detected"
+          done < "$RESULTS_FILE"
+
+          BLOCKING=0
+          while IFS= read -r -d '' filepath; do
+            BLOCKING=$((BLOCKING + 1))
+            REL_PATH="${filepath#"$GITHUB_WORKSPACE"/}"
+            SAFE_PATH="${REL_PATH//'%'/'%25'}"
+            SAFE_PATH="${SAFE_PATH//$'\r'/'%0D'}"
+            SAFE_PATH="${SAFE_PATH//$'\n'/'%0A'}"
+            SAFE_PATH="${SAFE_PATH//':'/'%3A'}"
+            SAFE_PATH="${SAFE_PATH//','/'%2C'}"
+            echo "::error file=${SAFE_PATH}::C0 control character or NUL byte detected"
+          done < "$BLOCKING_FILE"
+
           echo "findings=$FINDINGS" >> "$GITHUB_OUTPUT"
-          echo "exit_code=$EL_EXIT" >> "$GITHUB_OUTPUT"
+          echo "blocking=$BLOCKING" >> "$GITHUB_OUTPUT"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
-          # Emit annotations for each file with invisible chars
-          while IFS= read -r filepath; do
-            [ -z "$filepath" ] && continue
-            REL_PATH="${filepath#$GITHUB_WORKSPACE/}"
-            echo "::warning file=${REL_PATH}::Invisible Unicode characters detected (zero-width space, BOM, NBSP, etc.)"
-          done < /tmp/empty-lint-results.txt
+          if [ "$BLOCKING" -gt 0 ]; then
+            echo "## Empty-linter: BLOCKED — $BLOCKING file(s) contain C0/NUL corruption" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Write summary
         run: |
@@ -178,11 +224,14 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Job 4: Groove manifest check (for repos that should expose services)
+  # Job 4: Groove manifest check
+  # 🟡 CHECK: an invalid manifest FAILS the job (exit 1 in the shared script);
+  # "server code but no endpoint" remains a labelled ADVISORY warning.
   # ---------------------------------------------------------------------------
   groove-check:
-    name: Groove manifest check
+    name: "🟡 CHECK: Groove manifest check"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -191,57 +240,32 @@ jobs:
       - name: Check for Groove manifest
         id: groove
         run: |
-          # Check for static or dynamic Groove endpoints
-          HAS_MANIFEST="false"
-          HAS_GROOVE_CODE="false"
-
-          if [ -f ".well-known/groove/manifest.json" ]; then
-            HAS_MANIFEST="true"
-            # Validate the manifest JSON
-            if ! jq empty .well-known/groove/manifest.json 2>/dev/null; then
-              echo "::error file=.well-known/groove/manifest.json::Invalid JSON in Groove manifest"
-            else
-              SVC_ID=$(jq -r '.service_id // "unknown"' .well-known/groove/manifest.json)
-              echo "service_id=$SVC_ID" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
-          # Check for Groove endpoint code (Rust, Elixir, Zig, V)
-          if grep -rl 'well-known/groove' --include='*.rs' --include='*.ex' --include='*.zig' --include='*.v' --include='*.res' . 2>/dev/null | head -1 | grep -q .; then
-            HAS_GROOVE_CODE="true"
-          fi
-
-          # Check if this repo likely serves HTTP (has server/listener code)
-          HAS_SERVER="false"
-          if grep -rl 'TcpListener\|Bandit\|Plug.Cowboy\|httpz\|vweb\|axum::serve\|actix_web' --include='*.rs' --include='*.ex' --include='*.zig' --include='*.v' . 2>/dev/null | head -1 | grep -q .; then
-            HAS_SERVER="true"
-          fi
-
-          echo "has_manifest=$HAS_MANIFEST" >> "$GITHUB_OUTPUT"
-          echo "has_groove_code=$HAS_GROOVE_CODE" >> "$GITHUB_OUTPUT"
-          echo "has_server=$HAS_SERVER" >> "$GITHUB_OUTPUT"
-
-          if [ "$HAS_SERVER" = "true" ] && [ "$HAS_MANIFEST" = "false" ] && [ "$HAS_GROOVE_CODE" = "false" ]; then
-            echo "::warning::This repo has server code but no Groove endpoint. Add .well-known/groove/manifest.json for service discovery."
-          fi
+          # Gate logic lives in scripts/check-groove-manifest.sh so the exact
+          # code that runs here is exercised by scripts/test-ci-honesty.sh
+          # against pass AND fail fixtures (issue #49).
+          scripts/check-groove-manifest.sh "$GITHUB_WORKSPACE"
 
       - name: Write summary
+        if: always()
         run: |
           echo "## Groove Protocol Check" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Static manifest (.well-known/groove/manifest.json) | ${{ steps.groove.outputs.has_manifest }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Static manifest (www/.well-known/groove/manifest.json) | ${{ steps.groove.outputs.has_manifest }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Groove endpoint in code | ${{ steps.groove.outputs.has_groove_code }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Has HTTP server code | ${{ steps.groove.outputs.has_server }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_🟡 CHECK tier: an invalid manifest fails this job; advisories (e.g. missing endpoint with server code) do not gate._" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Job 5: Dogfooding summary
+  # Job 5: Dogfooding summary — ℹ️ ADVISORY. Never gates, by design, and says
+  # so in its name so a green run is never mistaken for enforced compliance.
   # ---------------------------------------------------------------------------
   dogfood-summary:
-    name: Dogfooding compliance summary
+    name: "ℹ️ ADVISORY: Dogfooding compliance summary (non-gating)"
     runs-on: ubuntu-latest
-    needs: [a2ml-validate, k9-validate, empty-lint, groove-check]
+    needs: [gate-self-test, a2ml-validate, k9-validate, empty-lint, groove-check]
     if: always()
 
     steps:
@@ -278,7 +302,7 @@ jobs:
           fi
 
           # Groove manifest or code?
-          if [ -f ".well-known/groove/manifest.json" ] || grep -rl 'well-known/groove' --include='*.rs' --include='*.ex' --include='*.zig' . 2>/dev/null | head -1 | grep -q .; then
+          if [ -f "www/.well-known/groove/manifest.json" ] || [ -f ".well-known/groove/manifest.json" ] || grep -rl 'well-known/groove' --include='*.rs' --include='*.ex' --include='*.zig' . 2>/dev/null | head -1 | grep -q .; then
             SCORE=$((SCORE + 1))
             GROOVE_STATUS=":white_check_mark:"
           else
@@ -296,11 +320,14 @@ jobs:
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
           ## Dogfooding Scorecard
 
+          > ℹ️ **ADVISORY — this job never gates.** It only reports; enforcement
+          > tier of each check is stated in its own job (🔴/🟡/ℹ️).
+
           **Score: ${SCORE}/${MAX}**
 
           | Tool/Format | Status | Notes |
           |-------------|--------|-------|
-          | DEED repo deed (`<reponame>_chora.deed`) | ${A2ML_STATUS} | Required for all RSR repos |
+          | DEED repo deed (\`<reponame>_chora.deed\`) | ${A2ML_STATUS} | Required for all RSR repos |
           | K9 contracts | ${K9_STATUS} | Required for repos with config files |
           | .editorconfig | ${EC_STATUS} | Required for all repos |
           | Groove endpoint | ${GROOVE_STATUS} | Required for service repos |

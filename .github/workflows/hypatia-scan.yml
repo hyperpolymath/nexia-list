@@ -252,6 +252,20 @@ jobs:
           # (codeql.yml) instead of overwriting them on the same surface.
           category: hypatia
 
+      - name: Block critical/high findings when HYPATIA_BLOCK_ON_HIGH is enabled
+        # 🔴 OPT-IN GATE (issue #49): by default this scan is ADVISORY by estate
+        # doctrine. Setting the repository variable HYPATIA_BLOCK_ON_HIGH=true
+        # (Settings → Secrets and variables → Actions → Variables) turns the
+        # check into a real gate WITHOUT editing this canonical workflow —
+        # mirroring the `block-on-high` input of the estate reusable
+        # (hyperpolymath/standards .github/workflows/hypatia-scan-reusable.yml).
+        # The decision logic lives in scripts/check-hypatia-findings.sh so the
+        # fail path is proven by fail fixtures (scripts/test-ci-honesty.sh,
+        # run by the gate-self-test job in dogfood-gate.yml).
+        if: vars.HYPATIA_BLOCK_ON_HIGH == 'true'
+        run: |
+          scripts/check-hypatia-findings.sh hypatia-findings.json --block --high-too
+
       - name: Submit findings to gitbot-fleet (Phase 2)
         if: steps.scan.outputs.findings_count > 0
         # Phase 2 is the collaborative LEARNING side-channel ("bots share
@@ -321,19 +335,20 @@ jobs:
           # Cleanup
           rm -rf "$FLEET_DIR"
 
-      - name: Check for critical issues
-        if: steps.scan.outputs.critical > 0
+      - name: Check for critical issues (ADVISORY — does not gate)
+        # Only surfaces an advisory when the opt-in gate above is OFF;
+        # when HYPATIA_BLOCK_ON_HIGH=true the blocking step owns the verdict.
+        if: vars.HYPATIA_BLOCK_ON_HIGH != 'true' && steps.scan.outputs.critical > 0
         # GATING POLICY (explicit, by design — not an oversight):
-        # Hypatia is ADVISORY here. Critical findings are surfaced
-        # (step annotation + SARIF alert on the code-scanning page +
-        # PR comment) but do NOT fail this check. Enforcement is
-        # delegated to the code-scanning surface: tighten by adding a
-        # branch-protection "required" status on the `hypatia` SARIF
-        # category, not by reintroducing an `exit 1` here. This keeps
-        # the gate decision in one auditable place (hypatia#213 gate
-        # decoupling) and lets a repo opt into fail-on-critical without
-        # editing this canonical workflow. To change the policy, change
-        # branch protection — deliberately no commented-out `exit 1`.
+        # Hypatia is ADVISORY here unless the repository opts into the gate
+        # (repository variable HYPATIA_BLOCK_ON_HIGH=true — see the 🔴 step
+        # above). Findings are surfaced (step annotation + SARIF alert on the
+        # code-scanning page + PR comment) but do NOT fail this check in
+        # advisory mode. Enforcement is delegated to one of two auditable
+        # switches: (a) the HYPATIA_BLOCK_ON_HIGH variable, or (b) a
+        # branch-protection "required" status on the `hypatia` SARIF category.
+        # This keeps the gate decision in one auditable place (hypatia#213
+        # gate decoupling) — deliberately no commented-out `exit 1`.
         run: |
           echo "::warning::Hypatia found critical security issue(s) — advisory."
           echo "See the Security → Code scanning page (category: hypatia)"
@@ -364,9 +379,11 @@ jobs:
              CodeQL alerts.
           2. The full finding set is also attached as the
              \`hypatia-findings.json\` build artifact for offline review.
-          3. Findings are **advisory** today (surfaced, not gated); the
-             gating policy is documented in the workflow's "Check for
-             critical issues" step.
+          3. Findings are **advisory** unless the repository variable
+             \`HYPATIA_BLOCK_ON_HIGH=true\` is set (surfaced, not gated in
+             advisory mode); the gating policy is documented in the
+             workflow's "Check for critical issues (ADVISORY — does not
+             gate)" step.
 
           ## Learning
 

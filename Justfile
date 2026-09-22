@@ -32,6 +32,12 @@ test: build
 test-rust:
     bun run test:rust
 
+# Prove the CI gates can fail: run every gate's real logic against fixtures
+# that MUST pass and MUST FAIL, plus drift checks that the workflows still wire
+# the gates in (issue #49). Also runs as the gate-self-test job in CI.
+test-ci-honesty:
+    scripts/test-ci-honesty.sh
+
 # Run the development server (http://localhost:5173)
 run:
     bun run dev
