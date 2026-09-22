@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= LambdaDelta (λδ) Plugin System — design + foundation status
+:toc: macro
+:toclevels: 2
+:icons: font
+
+Issue: https://github.com/hyperpolymath/nexia-list/issues/33[#33] ·
+Spec: link:lambdadelta-spec.adoc[λδ spec] ·
+ADR: link:../adr/0003-lambdadelta-lisp-substrate.md[ADR-0003]
+
+toc::[]
+
+== What exists now (the foundation, shipped)
+
+[%header,cols="1,2,2"]
+|===
+| Component | Where | Status
+
+| *Capability model* (foundation 1/2)
+| `core/src/lambdadelta/capability.rs`
+| ✅ Implemented: `Capability` catalogue (`:notes/read`, `:notes/write`,
+`:agents/run`), `CapabilitySet` grants with `allows`/`missing`/`require`,
+`:agents/run ⇒ :notes/read` implication. Enforced natively at the seam:
+`lambdadelta_host::register_gated` wraps every host builtin so the grant
+check runs *before* the notebook is touched — denial is a structured
+`LdError::Capability`, never a panic, never a partial effect.
+
+| *Package format* (foundation 2/2)
+| `core/src/lambdadelta/package.rs`
+| ✅ Implemented: homoiconic `manifest.ld` (a λδ map literal read by the
+ordinary λδ reader — no second parser). Field names mirror BoJ
+`cartridge.json` (`name`/`version`/`spdx`/`tier`/`description`) and PanLL
+contracts; kebab-case names, `x.y.z` versions, package-relative paths,
+unknown capabilities rejected as manifest errors. `resolve_config` is the
+configurator's enforcement half (typed schema + defaults + no unknown keys).
+
+| *Minter*
+| `scripts/ld-mint.js` (`just ld-new <name>`)
+| ✅ Implemented: scaffolds `plugins/<name>/` with `manifest.ld`,
+`src/main.ld`, `test/main.test.ld`, `README.adoc`; tier and capability
+flags; refuses overwrites. The reference package `plugins/word-count/` was
+minted by it (dogfood).
+
+| *Harness*
+| `core/src/lambdadelta/harness.rs`
+| ✅ Implemented: sandbox registered by closure (kernel never depends on a
+host); `assert-eq`/`assert` *record* into a `HarnessReport` instead of
+aborting; a read/eval error becomes a failed assertion, not a panic;
+per-harness `Budget` override.
+
+| *Provisioner* (validation core)
+| `core/src/lambdadelta/provisioner.rs`
+| ✅ Implemented (pure): `plan_install(manifest, offered, overrides) →
+InstallPlan` — refuses *totally* when requested ⊄ granted (`missing` names
+exactly the delta), grants exactly what was requested (least privilege by
+data), resolves config through the manifest schema.
+
+| *End-to-end proof*
+| `core/tests/lambdadelta_plugin_system.rs`
+| ✅ manifest validates → provisions → runs green in the harness against a
+fixture notebook; partial grants refused; read-only sandbox denies the
+plugin's mutation with a structured error; `:agents/run` not implied by
+`:notes/read`.
+
+| *Configurator* (UI) / *Wizard* / *Registry*
+| —
+| 🔲 Design below; the UI surface is generated from the manifest's
+`:config` schema (already enforced), the wizard is glue over the four
+components, signing/provenance is an estate-level open question.
+|===
+
+This satisfies the issue's sequencing guidance for what had to land early
+(“capability model” and “package format”, because they shape the kernel/host
+seam) plus the author loop (minter → harness). The spec’s §7 proof obligation
+— “capability non-escalation … until authority is represented and checked at
+dispatch” — is discharged for the gated path: authority is `CapabilitySet` and
+it is checked at every gated builtin dispatch.
+
+== Design principles
+
+. *The seam is the whole game.* λδ is homoiconic and the kernel knows nothing
+about notes; hosts register builtins through `Interp::register_builtin`. A
+plugin system is therefore mostly: a package format, a capability model, and
+ergonomics. Nothing here touches kernel semantics.
+. *Nothing runs with capabilities the user hasn't granted.* Not “warns”, not
+“best effort” — the provisioner refuses, and even if it didn’t, the host seam
+denies (defence in depth by construction).
+. *Enforcement is native.* Checks live in Rust before the effect, so no λδ
+code can route around them; failure is a structured value (sandbox contract,
+spec §6).
+. *Reuse ecosystem vocabulary.* Tiers `teranga`/`shield`/`ayo` and the
+manifest shape come from BoJ cartridges + PanLL minter/provisioner contracts
+— estate tooling should read a λδ package without new concepts.
+
+== Package format (`manifest.ld`)
+
+A package is a directory (shared as a `.ldpkg` bundle):
+
+----
+word-count/
+├── manifest.ld        ; λδ map literal — code is data
+├── src/main.ld        ; :entry-point
+├── test/main.test.ld  ; :tests (harness inputs)
+└── README.adoc
+----
+
+[source,clojure]
+----
+{:name "word-count"                  ; kebab-case, required
+ :version "0.1.0"                    ; x.y.z, required
+ :spdx "MPL-2.0"                     ; estate license policy
+ :tier :ayo                          ; :teranga core | :shield elevated | :ayo community (default)
+ :description "…"
+ :entry-point "src/main.ld"          ; package-relative; no `..`, not absolute
+ :capabilities [:notes/read :notes/write]
+ :config {:min-words {:type :int :default 0 :doc "ignore shorter notes"}}
+ :tests ["test/main.test.ld"]}
+----
+
+Mapping to BoJ `cartridge.json` is mechanical (`name`/`version`/`spdx`/
+`description` identical; `tier` maps onto the tier enum; `:capabilities` is
+the λδ analogue of cartridge `auth` + tool surface; `:entry-point` plays the
+`mod.js`/`ffi.so_path` role). A `cartridge.json ⇄ manifest.ld` translator is
+deliberately *not* built yet — one mechanical pass later, when a second host
+needs it.
+
+== Capability model
+
+[source]
+----
+:notes/read   pure readers — notes, note, attr, search, resolve-title, …
+:notes/write  !-mutators   — set-attr!, create-note!, link!, delete-note!, …
+:agents/run   run-agent (implies :notes/read: the predicate is read code)
+----
+
+* *Declared* in the manifest (unknown keywords → manifest error; the host
+cannot grant what it cannot enforce).
+* *Requested ≠ granted*: the provisioner intersects requests with the user’s
+offered grants; shortfall is a total refusal naming `missing` capabilities.
+* *Enforced* at dispatch by `register_gated`: each builtin closure checks its
+`Gate` first. `:agents/run` grants read transitively
+(`CapabilitySet::allows`).
+* *Refinement path* (designed, deferred): keyword capabilities stay valid
+while map forms like `[:notes/read {:titles "Journal *"}]` extend the same
+slot — refinement is additive to the manifest grammar.
+
+== The four components + wizard
+
+=== Minter ✅
+
+`just ld-new <name> --caps notes/read,notes/write --tier ayo` —
+mirrors `panll/contracts/minter.toml`’s role (scaffold-from-template) and BoJ
+`minter.toml` fields (name/description/version/tier). Output passes
+`PackageManifest::from_source` immediately — the integration test mints→loads
+`plugins/word-count/` to keep that true.
+
+=== Provisioner ✅ (core) / 🔲 (host prompt + receipts)
+
+Pure half done: `plan_install`. Host half (next): surface the request
+(manifest capabilities + why), record an `InstallReceipt` (package id,
+version pin, grants, resolved config) in notebook storage so installed
+packages travel with the data they extend.
+
+=== Configurator 🔲 (UI) / ✅ (schema + validation)
+
+The manifest `:config` map *is* the typed-attribute surface the config UI is
+generated from — one widget per `:type` (`:string/:int/:float/:bool/:keyword/
+(:enum …)`), doc strings from `:doc`. Validation is already enforced
+(`resolve_config`): no unvalidated value reaches a plugin.
+
+=== Harness ✅
+
+Sandbox = interpreter + explicitly-installed host surface + budget + recorded
+assertions. Same object runs author iteration (`just test-rust` → the plugin
+integration suites) and CI verification — there is no second “test mode”.
+
+=== Wizard (design)
+
+Guided design→deploy glue over the four: *mint* (name, tier, capabilities
+inferred by scanning the source for builtin usage — readers suggest
+`:notes/read`, `!`-builtins suggest `:notes/write`) → *develop* (harness loop
+with the fixture notebook) → *provision* (grant prompt rendering exactly the
+`missing` delta) → *configure* (schema-generated form) → *deploy* (install
+receipt into the notebook). Each stage is a call into a component that
+already exists; the wizard is presentation, not new machinery.
+
+== Trust, tiers, and open questions
+
+* *Tiers*: `teranga` packages may ship with the app and request any
+capability; `shield` packages additionally require signed provenance
+(deferred — estate signing policy is a standards-level decision, tracked
+below); `ayo` (community) is the minting default and gets the tightest
+default budget (`Harness::with_budget`).
+* *Where plugins live*: in-notebook first (packages travel with the data they
+extend — install receipts per notebook); a shared registry is a distribution
+layer on top, intentionally unspecified here.
+* *Signing/provenance*: open estate question (the PanLL/BoJ ecosystems have
+not settled it either). The manifest format reserves space (`:signature`,
+`:provenance`) but nothing interprets them yet.
+
+== Failure modes the design refuses
+
+* A silent-capability plugin (code does more than the manifest admits) —
+impossible: enforcement keys on the builtin dispatch, not the manifest text.
+* A green-but-fake test run — assertions are recorded; an evaluation error is
+a failed assertion; `HarnessReport::is_green` requires zero failures.
+* Grant creep at install — plans carry *exactly* the requested set.

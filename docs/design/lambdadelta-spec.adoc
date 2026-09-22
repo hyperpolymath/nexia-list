@@ -318,8 +318,14 @@ tiny and stable.
 
 The capability model and package/manifest format are specified in *#33*;
 this section fixes only that the seam exists and where it sits.
-Capability non-escalation remains an engineering-blocked proof
-obligation until authority is represented and checked at dispatch.
+*Update (2026-09-22, #33 foundation):* the capability model
+(`lambdadelta::capability`) and package format (`lambdadelta::package`) are
+now implemented, and gated native registrations
+(`lambdadelta_host::register_gated`) check authority at every builtin
+dispatch — non-escalation is proven by `core/tests/lambdadelta_plugin_system.rs`
+for the gated path. See link:lambdadelta-plugin-system.adoc[the plugin-system
+design + status]. Ungated registration remains for trusted host contexts
+(formulas, agents) only.
 
 '''''
 

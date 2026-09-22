@@ -53,6 +53,12 @@ pub enum LdError {
     #[error("budget exceeded: {0}")]
     Budget(String),
 
+    /// Sandbox code attempted an effect its granted capabilities do not cover
+    /// (issue #33, spec §7.1: nothing runs with capabilities the user hasn't
+    /// granted).
+    #[error("capability denied: {0}")]
+    Capability(String),
+
     /// An error raised deliberately from λδ code.
     #[error("{0}")]
     User(String),
