@@ -1,0 +1,84 @@
+= Contributing to Nexia-List
+:toc: macro
+
+[.badges]
+xref:README.adoc[README] · link:LICENSE[License (MPL-2.0)]
+
+toc::[]
+
+== Development setup
+
+Prerequisites:
+
+* **Rust** stable + the `wasm32-unknown-unknown` target
+* **Bun** 1.3.x — the only JS toolchain (no npm/yarn/pnpm/deno; see
+  `docs/adr/0004-bun-only-toolchain.adoc`)
+* Optionally **Guix** for a reproducible native shell: `guix shell -D -f guix.scm`
+  covers Rust + native link deps; Bun and the wasm target are added via the
+  pinned installer steps exactly as CI does (see comments in `guix.scm`).
+
+[source,bash]
+----
+git clone https://github.com/hyperpolymath/nexia-list.git
+cd nexia-list
+bun install --frozen-lockfile
+
+# Build the Rust wasm core (web/wasm/)
+bun run build        # = bun run build:wasm
+
+# Verify
+bun run lint
+bun run test         # cargo test (core) + bun test (wasm/UI contract suites)
+----
+
+Equivalent `just` recipes exist (`just setup`, `just build`, `just test`,
+`just check`) — see the Justfile.
+
+== Repository structure
+
+    nexia-list/
+    ├── core/                # Rust core — notes, backlinks, search, JSON storage, λδ (lambdadelta) substrate
+    ├── ui/                  # AffineScript (.affine) UI sources — hand-rolled TEA (Model/Msg/Update/View)
+    │   ├── src/             #   modules + plain-JS store sinks (fileio/idb/vault)
+    │   └── tests/           #   *Tests.affine (compile-checked) + *.test.js (live bun suites)
+    ├── scripts/             # Bun build scripts (build_wasm.js)
+    ├── web/                 # Browser statics + wasm core output (web/wasm/)
+    ├── guix.scm             # Guix dev shell (native toolchain side)
+    └── docs/                # design/ adrs/ decisions/ wikis/
+
+IMPORTANT: The UI was ported ReScript → **AffineScript** (PR #76). The
+AffineScript compiler currently offers `affinescript check` (compile-verify)
+only — there is **no web UI emitter yet**, so `ui-ci` verifies changed
+`.affine` files (added files gate hard; legacy modifications advisory) and UI
+web bundling is deferred. See
+`docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc`. Do not re-add ReScript
+tooling or zombie deps (`rescript`, `@rescript/*`, `react*`).
+
+== Workflow (issues → PR)
+
+. Open or pick an issue; state scope in it.
+. Branch from `main` (`fix/<slug>` / `feat/<slug>`); PRs only — no direct
+  pushes to `main`.
+. Keep CI honest: a step that cannot run must not claim a pass. Advisory
+  skips are reported *loudly*, never silently green.
+. Workflows are managed by `gh actions-lock`: after editing any
+  `.github/workflows/*` file, regenerate `actions.lock` and keep all
+  third-party actions pinned (this repo enforces SHA-pins);
+  SPDX header required on workflow files.
+. Docs are AsciiDoc (`docs/`), wikis are Markdown pointers — update the
+  *current-truth* documents when behaviour changes; ADRs are historical and
+  append-only (write a superseding ADR instead of editing).
+
+== Style
+
+* Rust: `cargo fmt` + clippy clean before push (see `rust-ci`).
+* JS/scripts: Biome (`bun run lint`, `bun run fmt`).
+* All new source files carry an SPDX header (`SPDX-License-Identifier: MPL-2.0`).
+* Banned languages/toolchains in this estate: TypeScript, Python, Go, npm —
+  plugin/tooling code is plain JS (Bun), Rust, bash, or AffineScript.
+
+== Reporting bugs / security
+
+Bugs: open an issue with repro steps. Security: see `SECURITY.md` and the
+`.well-known/security.txt` — do **not** open a public issue for
+vulnerabilities.
