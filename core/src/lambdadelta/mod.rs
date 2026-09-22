@@ -22,15 +22,32 @@
 //! for the core special forms + budget + pure builtins. Hygienic macros,
 //! multimethods, and the notebook host bindings layer on top without changing
 //! the seam.
+//!
+//! # Plugin ecosystem (issue #33)
+//!
+//! Four sibling modules carry the plugin/SDK foundation on top of the seam:
+//! [`capability`] (what a package may do — declared, granted, enforced),
+//! [`package`] (the homoiconic manifest format), [`provisioner`] (pure
+//! install-plan validation: nothing runs with un-granted capabilities), and
+//! [`harness`] (the sandboxed author/test environment). The minter lives in
+//! `scripts/ld-mint.js`; the design is `docs/design/lambdadelta-plugin-system.adoc`.
 
 mod builtins;
+pub mod capability;
 mod error;
 mod eval;
+pub mod harness;
+pub mod package;
 mod prelude;
+pub mod provisioner;
 mod reader;
 mod value;
 
+pub use capability::{Capability, CapabilitySet};
 pub use error::{LdError, LdResult};
+pub use harness::{Assertion, Harness, HarnessReport};
+pub use package::{ManifestError, PackageManifest, Tier};
+pub use provisioner::{plan_install, InstallPlan, ProvisionError};
 pub use reader::{read_all, read_one};
 pub use value::{Builtin, BuiltinImpl, Closure, Env, Scope, Value};
 

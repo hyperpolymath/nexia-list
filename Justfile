@@ -32,6 +32,11 @@ test: build
 test-rust:
     bun run test:rust
 
+# Mint a new λδ plugin package skeleton (issue #33 — the minter). Extra minter
+# flags (--tier, --caps, --description): bun scripts/ld-mint.js <name> --help
+ld-new name:
+    bun scripts/ld-mint.js {{name}}
+
 # Run the development server (http://localhost:5173)
 run:
     bun run dev

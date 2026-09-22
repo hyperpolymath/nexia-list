@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= word-count
+:tier: ayo
+
+Counts words per note and writes the :word-count attribute; the reference λδ package
+
+Minted with `just ld-new word-count` (scripts/ld-mint.js — the λδ minter, issue #33).
+
+== Layout
+
+[cols="1,2"]
+|===
+| `manifest.ld`        | Homoiconic manifest: version, tier (_{a.tier}_), requested capabilities, config schema
+| `src/main.ld`        | Entry point (definitions loaded by the provisioned interpreter)
+| `test/main.test.ld`  | Harness assertions (`assert-eq`/`assert`), run in the sandbox with the enforced grants
+| `README.adoc`        | This file
+|===
+
+== Lifecycle
+
+. *mint* — you are here
+. *develop* — edit `src/main.ld`; iterate with the harness (`assert-eq` in `test/`)
+. *provision* — the provisioner checks the requested capabilities against user grants
+. *configure* — user settings validated against the manifest's `:config` schema
+. *run* — inside the sandbox: enforced capabilities + evaluation budget
