@@ -9,12 +9,16 @@ updates:
         patterns:
           - "*"
     ignore:
-      # v4.38.1 fails GitHub workflow-startup validation estate-wide
-      # (codeql.yml/hypatia-scan.yml startup_failure on every repo that merged
-      # the grouped bump; v4.38.0 is green). Rollback: PR #100. Revisit once
-      # 4.38.1 is cleared upstream.
+      # HOLD: github/codeql-action at v4.38.0 (SHA-pinned). v4.38.1 fails
+      # GitHub workflow-startup validation estate-wide (codeql.yml /
+      # hypatia-scan.yml startup_failure on every repo that took the bump;
+      # rollback: #100). The earlier `versions: ["4.38.1"]` rule did NOT hold:
+      # dependabot re-raised the bump in SHA form within hours (PR #101),
+      # even copying the inline warning comment while swapping the SHA. Full
+      # hold until upstream clears 4.38.1 or a newer release verifies green;
+      # revisit deliberately, not nightly.
       - dependency-name: "github/codeql-action"
-        versions: ["4.38.1"]
+
   # Rust core crate. NOTE: deliberately no entry for /desktop — its path
   # dependency on an external sibling checkout (../../gossamer) would make
   # dependabot error.
