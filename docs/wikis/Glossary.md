@@ -72,7 +72,7 @@ A note that serves as a template: other notes inherit its [attributes](#attribut
 Ambient recall: for the note you're looking at, the top related notes by TF-IDF cosine similarity over the [concordance](#concordance--inverted-index) — surfaced as a "Related notes" panel that appears only when non-empty. DEVONthink's crown jewel; the feature that makes the archive write back. Closes the *resurface* stage of the loop.
 
 ### TEA
-The Elm Architecture — Model / Msg / Update / View with pure update functions and exhaustive pattern matching. Nexia-List's UI is a **hand-rolled** TEA loop in ReScript 11 on `@rescript/react` (the `rescript-tea` library was removed as unused). See [Developer](Developer).
+The Elm Architecture — Model / Msg / Update / View with pure update functions and exhaustive pattern matching. Nexia-List's UI is a **hand-rolled** TEA loop, ported to **AffineScript** (`.affine`) and compile-verified in CI; web re-emit is pending upstream (see the 2026-09-22 decision under `docs/decisions/`). See [Developer](Developer).
 
 ### Tinderbox
 The macOS spatial-hypertext tool that inspired Nexia-List — notes on a canvas, [agents](#agent), [prototypes](#prototype), attribute-driven emergence. Its ceiling is a bolted-on, non-extensible formula language and single-vendor, macOS-only mortality. Nexia-List carries its spirit cross-platform, open, and homoiconic to the core.

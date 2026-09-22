@@ -40,6 +40,7 @@ workflows:
     '.github/workflows/ui-ci.yml':
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
+        - 'ocaml/setup-ocaml@93303b622b2522e4411e295f9e77411a24912ac7'
 dependencies:
     'actions/cache@v6.1.0':
         ref: 'v6.1.0'
@@ -98,6 +99,11 @@ dependencies:
         commit: 'sha1-6037f33647c3f17758a2356c80fc4a53d7e0685d'
         owner_id: 75048950
         repo_id: 623796603
+    'ocaml/setup-ocaml@93303b622b2522e4411e295f9e77411a24912ac7':
+        ref: '93303b622b2522e4411e295f9e77411a24912ac7'
+        commit: 'sha1-93303b622b2522e4411e295f9e77411a24912ac7'
+        owner_id: 1841483
+        repo_id: 220799100
     'hyperpolymath/deed-ecosystem@main':
         ref: 'main'
         commit: 'sha1-ed83d6927e8fb21431e403dbf6d7a4af96772746'

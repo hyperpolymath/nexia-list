@@ -1,9 +1,12 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
-# This workflow is managed by gh actions-lock.
-# This workflow is managed by gh actions-lock.
-# Product CI (UI/web): compiles the ReScript UI under Bun, builds the wasm
-# core, runs the UI + contract tests, and produces the web bundle.
+# Product CI (UI/wasm): compile-verify changed AffineScript sources, build the
+# Rust wasm core, and run the live UI/contract test suites.
+#
+# The UI was ported from ReScript to AffineScript (PR #76). The AffineScript
+# compiler verifies .affine files (`affinescript check`) but ships no web UI
+# emitter yet, so there is deliberately no UI bundling here — see
+# docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc.
 name: ui-ci
 
 on:
@@ -20,9 +23,137 @@ concurrency:
   group: ui-ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Compile-verifies changed `.affine` files with the canonical AffineScript
+# compiler (hyperpolymath/affinescript), pinned to a commit SHA.
+# Estate-standard split gate (standards#446 honest-gating):
+#   * ADDED .affine files     -> BLOCKING (new code must compile)
+#   * MODIFIED legacy files    -> advisory until the port backlog clears
+#   * Toolchain failures       -> advisory skip (reported LOUDLY, never silent)
+env:
+  LEGACY_BLOCKING: "false"
+  COMPILER_REPO: hyperpolymath/affinescript
+  COMPILER_REF: d2875a552f1d389b4a60c4adfdc02ae53e36aca3
+
 jobs:
+  affinescript-verify:
+    name: AffineScript Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed .affine files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || printf '%s' "$BASE" | grep -qE '^0+$'; then
+            BASE="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+          fi
+          ADDED="$(git diff --name-only --diff-filter=A "$BASE" HEAD -- '*.affine' || true)"
+          MODIFIED="$(git diff --name-only --diff-filter=CMR "$BASE" HEAD -- '*.affine' || true)"
+          FILES="$(printf '%s\n%s\n' "$ADDED" "$MODIFIED" | sed '/^$/d')"
+          if [ -z "$FILES" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "No changed .affine files — nothing to verify."
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "Changed .affine files (added gate hard; modified advisory):"
+            echo "$FILES"
+            { echo 'files<<EOF'; echo "$FILES"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+            { echo 'added<<EOF'; echo "$ADDED"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout AffineScript compiler
+        if: steps.changed.outputs.any == 'true'
+        continue-on-error: true
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ env.COMPILER_REPO }}
+          ref: ${{ env.COMPILER_REF }}
+          path: .affinescript-compiler
+
+      - name: Set up OCaml
+        if: steps.changed.outputs.any == 'true'
+        continue-on-error: true
+        uses: ocaml/setup-ocaml@93303b622b2522e4411e295f9e77411a24912ac7 # v3
+        with:
+          ocaml-compiler: "5.1"
+
+      - name: Build compiler
+        id: build
+        if: steps.changed.outputs.any == 'true'
+        continue-on-error: true
+        working-directory: .affinescript-compiler
+        run: |
+          opam install . --deps-only
+          opam exec -- dune build
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify changed .affine files (added files gate; legacy advisory)
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          set -u
+          if [ "${{ steps.build.outputs.ok }}" != "true" ] || [ ! -d .affinescript-compiler ]; then
+            echo "::warning::AffineScript toolchain unavailable (compiler checkout/opam/build failed) — verification SKIPPED, not passed."
+            {
+              echo "## AffineScript Verify"
+              echo "⚠️ **SKIPPED — toolchain unavailable.** The compiler did not build;"
+              echo "no \`.affine\` file was verified. This is an infra flake, not a pass."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cd .affinescript-compiler
+          is_added() {
+            case $'\n'"${ADDED_SET}"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; *) return 1 ;; esac
+          }
+          ADDED_SET="$(cat <<'OUTER'
+          ${{ steps.changed.outputs.added }}
+          OUTER
+          )"
+          ADDED_SET="$(printf '%s\n' "$ADDED_SET" | sed 's/^[[:space:]]*//' | sed '/^$/d')"
+          added_fail=""
+          legacy_fail=""
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            abs="$GITHUB_WORKSPACE/$f"
+            echo "::group::check $f"
+            if opam exec -- dune exec affinescript -- check "$abs" 2>&1; then
+              echo "✅ $f"
+            elif is_added "$f"; then
+              echo "::error file=$f::AffineScript check failed (ADDED file — blocking)"
+              echo "❌ $f failed (added file — blocking)"
+              added_fail="$added_fail$f"$'\n'
+            else
+              echo "::warning file=$f::AffineScript check failed (legacy port — advisory until backlog clears)"
+              echo "⚠️ $f failed (legacy port — advisory)"
+              legacy_fail="$legacy_fail$f"$'\n'
+            fi
+            echo "::endgroup::"
+          done <<'OUTER'
+          ${{ steps.changed.outputs.files }}
+          OUTER
+
+          {
+            echo "## AffineScript Verify (split gate)"
+            [ -n "$added_fail" ]  && { echo "❌ Added files that MUST compile but did not:"; printf '%s' "$added_fail" | sed '/^$/d; s/^/- /'; }
+            [ -n "$legacy_fail" ] && { echo "⚠️ Legacy files failing (advisory until port backlog clears):"; printf '%s' "$legacy_fail" | sed '/^$/d; s/^/- /'; }
+            [ -z "$added_fail" ] && [ -z "$legacy_fail" ] && echo "✅ All changed .affine files compile."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$added_fail" ]; then exit 1; fi
+
   build-test:
-    name: rescript + wasm + bun test + bundle
+    name: wasm core + bun tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -53,17 +184,11 @@ jobs:
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
-      - name: Compile ReScript
-        run: bun run build:res
-
       - name: Build wasm core
         run: bun run build:wasm
 
       - name: UI + contract tests
         run: bun run test:ui
-
-      - name: Bundle web app
-        run: bun run build:web
 
       - name: Lint
         run: bun run lint

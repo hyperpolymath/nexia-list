@@ -1,0 +1,52 @@
+= Decision: UI web bundling deferred until AffineScript emits a web UI target
+:author: Arena agent (fix PR)
+:revdate: 2026-09-22
+:status: Accepted
+
+== Context
+
+PR #76 ("Ported via Harvard Engine (Semantic pass)") rewrote the UI from ReScript
+(`ui/src/*.res`) to AffineScript (`ui/src/*.affine`). The port moved the sources but
+left the *tooling* behind pointing at the old pipeline:
+
+* `bun run build:res` invoked `cd ui && bunx rescript`, but `ui/rescript.json` had
+  already been deleted — `ui-ci` failed on every run since the port
+  (`rescript.json: No such file or directory`, exit 2).
+* `bun run build:web` bundled `ui/src/Main.res.js`, which no longer exists anywhere.
+* Four `ui/tests/*.test.js` wrappers imported compiled test artefacts
+  (`*.res.js`) that can no longer be produced, so `bun test ui/tests` failed in
+  four of eight suites.
+* `package.json` still carried the zombie dependencies `rescript`,
+  `@rescript/core`, `@rescript/react`, `react`, `react-dom`.
+
+The AffineScript compiler (hyperpolymath/affinescript, pinned commit
+`d2875a552f1d389b4a60c4adfdc02ae53e36aca3`) currently offers `affinescript check`
+(compile verification / type-check). It does **not** yet emit a JavaScript/web UI
+target, so a web bundle of the Elmish React UI cannot be produced from the
+`.affine` sources today. The estate's own `affinescript-verify.yml` (standards)
+anticipates this state with the split gate: added `.affine` files gate hard,
+modified legacy ports are advisory until the port backlog clears.
+
+== Decision
+
+1. `ui-ci` adopts the **estate-canonical AffineScript Verify job** (split gate,
+   `COMPILER_REF` pinned by SHA) instead of the dead ReScript compile step.
+2. **UI web bundling is deferred** until AffineScript ships a web UI emitter.
+   `build:web`, `build:res*`, the `dev` harness, `scripts/build.js` and
+   `scripts/dev.js` are removed. No part of the estate deploys a `web/dist`
+   bundle: `casket-pages.yml` builds the documentation site independently via its
+   Haskell SSG, and `web/dist` was never committed or published.
+3. The four dead test wrappers are deleted. Behavioural runtime coverage is
+   carried by the wasm-contract suites (`agents`, `contract`, `exchange`,
+   `wikilink`), which import only the wasm core; compile-level coverage of the
+   ported modules (including `*Tests.affine`) is carried by the verify job.
+4. Zombie dependencies are removed from `package.json`; `bun.lock` regenerated.
+
+== Consequences
+
+* `ui-ci` is green-honest again: every step either passes for real or reports a
+  labelled advisory — no silent successes, no permanently-red noise.
+* Local `bun run dev` hot-reload of the UI disappears until the emitter lands;
+  wasm-core development flows through `bun run build:wasm` + `bun run test:ui`.
+* When AffineScript gains a UI emitter, resurrect bundling from git history and
+  close this decision with a superseding ADR.

@@ -6,11 +6,7 @@
   "scripts": {
     "setup": "bun install --frozen-lockfile",
     "setup:rust": "cd core && cargo build",
-    "dev": "bun scripts/dev.js",
-    "build": "bun run build:res && bun run build:web",
-    "build:res": "cd ui && bunx rescript",
-    "build:res:watch": "cd ui && bunx rescript build -w",
-    "build:web": "bun scripts/build.js",
+    "build": "bun run build:wasm",
     "build:rust": "cd core && cargo build --release",
     "build:wasm": "bun scripts/build_wasm.js",
     "gossamer:dev": "cd desktop && gossamer dev",
@@ -21,15 +17,9 @@
     "lint": "biome lint scripts ui/tests web",
     "fmt": "biome format --write scripts ui/tests web && cd core && cargo fmt",
     "fmt:check": "biome format scripts ui/tests web && cargo fmt --check",
-    "clean": "cd ui && bunx rescript clean"
+    "clean": "git clean -fdx web/wasm/"
   },
-  "dependencies": {
-    "@rescript/core": "1.6.1",
-    "@rescript/react": "0.13.1",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "rescript": "11.1.4"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "2.3.11"
   }
