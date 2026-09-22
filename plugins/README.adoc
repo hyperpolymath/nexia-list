@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= λδ packages
+
+λδ (LambdaDelta) packages extend Nexia-List from inside the sandbox:
+declared capabilities, enforced by the host seam — nothing runs with
+capabilities the user hasn't granted.
+
+[cols="1,2"]
+|===
+| Mint a package | `just ld-new <name>` (the minter, `scripts/ld-mint.js`)
+| Reference package | link:word-count/[`word-count/`] — minted by the minter, proven green in the harness
+| Manifest format | `core/src/lambdadelta/package.rs`
+| Capability model | `core/src/lambdadelta/capability.rs`
+| Verifying tests | `core/tests/lambdadelta_plugin_system.rs`
+| Design + status | link:../docs/design/lambdadelta-plugin-system.adoc[docs/design/lambdadelta-plugin-system.adoc]
+|===
+
+Every package directory is minter-shaped:
+
+----
+<name>/
+├── manifest.ld        ; λδ map: version, tier, requested capabilities, config schema
+├── src/main.ld        ; :entry-point
+├── test/main.test.ld  ; :tests — harness assertions (assert-eq/assert)
+└── README.adoc
+----

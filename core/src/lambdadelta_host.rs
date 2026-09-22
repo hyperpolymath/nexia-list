@@ -23,6 +23,7 @@ use std::rc::Rc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::lambdadelta::capability::{Capability, CapabilitySet};
 use crate::lambdadelta::{Budget, Interp, LdError, LdResult, Value};
 use crate::note::Point2D;
 use crate::notebook::Notebook;
@@ -48,6 +49,36 @@ use crate::notebook::Notebook;
 pub fn register(interp: &mut Interp, nb: Rc<RefCell<Notebook>>) {
     register_readers(interp, &nb);
     register_mutators(interp, &nb);
+}
+
+/// Register the full notebook surface **behind capability enforcement** — the
+/// plugin sandbox (issue #33, spec §7.1). Every builtin first asks `grants`
+/// for permission: readers need [`Capability::NotesRead`], `!`-mutators need
+/// [`Capability::NotesWrite`], `run-agent` needs [`Capability::AgentsRun`].
+/// A denied call fails with [`LdError::Capability`] *before* the notebook is
+/// touched — enforcement is native, at the seam, so no λδ code can route
+/// around it.
+///
+/// ```
+/// use std::cell::RefCell;
+/// use std::rc::Rc;
+/// use nexia_core::lambdadelta::{Budget, CapabilitySet, Interp};
+/// use nexia_core::notebook::Notebook;
+///
+/// let nb = Rc::new(RefCell::new(Notebook::new("demo")));
+/// let mut interp = Interp::new();
+/// let grants = CapabilitySet::from_keywords([":notes/read"]).unwrap();
+/// nexia_core::lambdadelta_host::register_gated(&mut interp, nb, Rc::new(grants));
+///
+/// // Reading is granted …
+/// assert!(interp.eval_str("(notes)", Budget::new()).is_ok());
+/// // … but mutation is denied, with a structured error — never a panic.
+/// let denied = interp.eval_str("(create-note! \"nope\")", Budget::new()).unwrap_err();
+/// assert!(format!("{denied}").contains("capability denied"));
+/// ```
+pub fn register_gated(interp: &mut Interp, nb: Rc<RefCell<Notebook>>, grants: Rc<CapabilitySet>) {
+    register_readers_gated(interp, &nb, &grants);
+    register_mutators_gated(interp, &nb, &grants);
 }
 
 /// Register only the pure reader builtins — the surface a **formula** or
@@ -100,6 +131,159 @@ pub fn eval_formula(
     interp.eval_str(src, budget)
 }
 
+/// Gated readers — installed with their required capability. `agents` lists
+/// agent metadata (read-level); `run-agent` evaluates a stored predicate over
+/// the notebook and requires [`Capability::AgentsRun`] (which implies read —
+/// see [`CapabilitySet::allows`]).
+pub fn register_readers_gated(
+    interp: &mut Interp,
+    nb: &Rc<RefCell<Notebook>>,
+    grants: &Rc<CapabilitySet>,
+) {
+    let r = Capability::NotesRead;
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "notes",
+        0,
+        Some(0),
+        bi_notes,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "note",
+        1,
+        Some(1),
+        bi_note,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "title",
+        1,
+        Some(1),
+        bi_title,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "content",
+        1,
+        Some(1),
+        bi_content,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "attrs",
+        1,
+        Some(1),
+        bi_attrs,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "links",
+        1,
+        Some(1),
+        bi_links,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "backlinks",
+        1,
+        Some(1),
+        bi_backlinks,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "position",
+        1,
+        Some(1),
+        bi_position,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "attr",
+        2,
+        Some(2),
+        bi_attr,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "search",
+        1,
+        Some(1),
+        bi_search,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "resolve-title",
+        1,
+        Some(1),
+        bi_resolve_title,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, r),
+        "agents",
+        0,
+        Some(0),
+        bi_agents,
+    );
+    gated_reader(
+        interp,
+        nb,
+        Gate::new(grants, Capability::AgentsRun),
+        "run-agent",
+        1,
+        Some(1),
+        bi_run_agent,
+    );
+}
+
+/// Gated mutators — every write requires [`Capability::NotesWrite`].
+pub fn register_mutators_gated(
+    interp: &mut Interp,
+    nb: &Rc<RefCell<Notebook>>,
+    grants: &Rc<CapabilitySet>,
+) {
+    let w = Capability::NotesWrite;
+    let list: [(&str, usize, Option<usize>, MutFn); 10] = [
+        ("create-note!", 1, Some(3), bi_create_note),
+        ("set-title!", 2, Some(2), bi_set_title),
+        ("set-content!", 2, Some(2), bi_set_content),
+        ("set-attr!", 3, Some(3), bi_set_attr),
+        ("remove-attr!", 2, Some(2), bi_remove_attr),
+        ("move-note!", 3, Some(3), bi_move_note),
+        ("resize-note!", 3, Some(3), bi_resize_note),
+        ("link!", 2, Some(2), bi_link),
+        ("unlink!", 2, Some(2), bi_unlink),
+        ("delete-note!", 1, Some(1), bi_delete_note),
+    ];
+    for (name, min, max, f) in list {
+        gated_mutator(interp, nb, Gate::new(grants, w), name, min, max, f);
+    }
+}
+
 type ReadFn = fn(&Notebook, &[Value]) -> LdResult<Value>;
 type MutFn = fn(&mut Notebook, &[Value]) -> LdResult<Value>;
 
@@ -128,6 +312,66 @@ fn mutator(
 ) {
     let n = nb.clone();
     interp.register_builtin(name, min, max, move |_i, a| {
+        let mut g = n.borrow_mut();
+        f(&mut g, a)
+    });
+}
+
+/// The enforcement context carried into every gated builtin: which grants to
+/// consult, and which single capability the wrapped builtin requires.
+#[derive(Clone)]
+struct Gate {
+    grants: Rc<CapabilitySet>,
+    req: Capability,
+}
+
+impl Gate {
+    fn new(grants: &Rc<CapabilitySet>, req: Capability) -> Self {
+        Gate {
+            grants: grants.clone(),
+            req,
+        }
+    }
+
+    /// Choke point: structured denial before any notebook access.
+    fn check(&self) -> LdResult<()> {
+        self.grants.require(self.req)
+    }
+}
+
+/// A reader wrapped in capability enforcement: the grant check runs BEFORE
+/// the notebook is borrowed, so a denied call observes nothing.
+fn gated_reader(
+    interp: &mut Interp,
+    nb: &Rc<RefCell<Notebook>>,
+    gate: Gate,
+    name: &str,
+    min: usize,
+    max: Option<usize>,
+    f: ReadFn,
+) {
+    let n = nb.clone();
+    interp.register_builtin(name, min, max, move |_i, a| {
+        gate.check()?;
+        let g = n.borrow();
+        f(&g, a)
+    });
+}
+
+/// A mutator wrapped in capability enforcement: the grant check runs BEFORE
+/// the notebook is mutably borrowed, so a denied call changes nothing.
+fn gated_mutator(
+    interp: &mut Interp,
+    nb: &Rc<RefCell<Notebook>>,
+    gate: Gate,
+    name: &str,
+    min: usize,
+    max: Option<usize>,
+    f: MutFn,
+) {
+    let n = nb.clone();
+    interp.register_builtin(name, min, max, move |_i, a| {
+        gate.check()?;
         let mut g = n.borrow_mut();
         f(&mut g, a)
     });
