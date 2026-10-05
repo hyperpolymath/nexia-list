@@ -131,6 +131,46 @@ pub fn eval_formula(
     interp.eval_str(src, budget)
 }
 
+/// The outcome of evaluating one computed field.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ComputedValue {
+    /// Field name.
+    pub name: String,
+    /// The λδ formula source, as stored on the note.
+    pub source: String,
+    /// The printed value, or the evaluation error. A failing field never
+    /// prevents its siblings from evaluating.
+    pub result: Result<String, String>,
+}
+
+/// Evaluate every computed field of note `id` as a formula (read-only, `self`
+/// bound to the note), in field-name order. Each field gets a fresh
+/// [`Budget`], so one runaway formula cannot starve the others. Returns an
+/// empty list for an unknown note.
+pub fn eval_computed_fields(nb: Rc<RefCell<Notebook>>, id: &Uuid) -> Vec<ComputedValue> {
+    let fields: Vec<(String, String)> = match nb.borrow().get_note(id) {
+        Some(note) => note
+            .computed
+            .iter()
+            .map(|(name, src)| (name.clone(), src.clone()))
+            .collect(),
+        None => return Vec::new(),
+    };
+    fields
+        .into_iter()
+        .map(|(name, source)| {
+            let result = eval_formula(nb.clone(), id, &source, Budget::new())
+                .map(|v| v.to_string())
+                .map_err(|e| e.to_string());
+            ComputedValue {
+                name,
+                source,
+                result,
+            }
+        })
+        .collect()
+}
+
 /// Gated readers — installed with their required capability. `agents` lists
 /// agent metadata (read-level); `run-agent` evaluates a stored predicate over
 /// the notebook and requires [`Capability::AgentsRun`] (which implies read —
@@ -560,6 +600,21 @@ fn want_f64(v: &Value) -> LdResult<f64> {
     }
 }
 
+/// A number usable as canvas geometry: finite, since NaN/Infinity cannot be
+/// stored (see `Note::position`).
+fn want_finite_f64(v: &Value) -> LdResult<f64> {
+    let x = want_f64(v)?;
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err(LdError::Type {
+            op: "notebook".to_string(),
+            expected: "finite number (note geometry)".to_string(),
+            got: x.to_string(),
+        })
+    }
+}
+
 fn attr_key(v: &Value) -> LdResult<String> {
     match v {
         Value::Keyword(s) | Value::Str(s) | Value::Symbol(s) => Ok(s.to_string()),
@@ -730,8 +785,8 @@ fn bi_remove_attr(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
 
 fn bi_move_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     let id = arg_id(&a[0])?;
-    let x = want_f64(&a[1])?;
-    let y = want_f64(&a[2])?;
+    let x = want_finite_f64(&a[1])?;
+    let y = want_finite_f64(&a[2])?;
     match nb.get_note_mut(&id) {
         Some(note) => {
             note.position = Some(Point2D::new(x, y));
@@ -744,8 +799,8 @@ fn bi_move_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
 
 fn bi_resize_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     let id = arg_id(&a[0])?;
-    let w = want_f64(&a[1])?;
-    let h = want_f64(&a[2])?;
+    let w = want_finite_f64(&a[1])?;
+    let h = want_finite_f64(&a[2])?;
     match nb.get_note_mut(&id) {
         Some(note) => {
             note.size = Some((w, h));

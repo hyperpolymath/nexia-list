@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ed4f26448ae9bb48e9e4d0cec9d9d5801e0c1313890e011eac483edc103b5873 # shrinks to name = "", specs = [NoteSpec { title: "", content: "", position: Some((0.0, -1.1654531014633595e158)), size: None, attributes: [], computed: [], links: [] }], agents = []

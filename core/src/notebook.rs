@@ -19,14 +19,114 @@ pub enum NotebookError {
     CircularLink,
 }
 
+/// On-disk schema version written by this build.
+///
+/// * v1 — the original format (no `schema_version` key; files written before
+///   versioning are read as v1).
+/// * v2 — adds per-note `computed` fields (λδ formula sources).
+///
+/// v1 → v2 is purely additive, so migration is the serde default.
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+
+/// Version assumed for files that predate the `schema_version` key.
+const LEGACY_SCHEMA_VERSION: u32 = 1;
+
+/// The serde default for a missing `schema_version` key.
+fn legacy_schema_version() -> u32 {
+    LEGACY_SCHEMA_VERSION
+}
+
+/// Write `notes` in id order, so saving the same notebook twice produces the
+/// same bytes (stable diffs, reproducible exports).
+fn serialize_sorted_notes<S: serde::Serializer>(
+    notes: &HashMap<NoteId, Note>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let sorted: std::collections::BTreeMap<&NoteId, &Note> = notes.iter().collect();
+    sorted.serialize(serializer)
+}
+
+/// Write the backlink index with keys and each source list in id order.
+fn serialize_sorted_backlinks<S: serde::Serializer>(
+    backlinks: &HashMap<NoteId, HashSet<NoteId>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let sorted: std::collections::BTreeMap<&NoteId, Vec<&NoteId>> = backlinks
+        .iter()
+        .map(|(target, sources)| {
+            let mut sources: Vec<&NoteId> = sources.iter().collect();
+            sources.sort();
+            (target, sources)
+        })
+        .collect();
+    sorted.serialize(serializer)
+}
+
+/// Why a stored notebook could not be loaded at all.
+///
+/// Recoverable damage (dangling links and the like) is *repaired* and
+/// reported in a [`LoadReport`] instead; these are the unrecoverable cases.
+#[derive(Debug, Error)]
+pub enum LoadError {
+    /// Not JSON, truncated, or the wrong shape for a notebook.
+    #[error("corrupt notebook data: {0}")]
+    Corrupt(#[from] serde_json::Error),
+
+    /// Written by a newer build. Refused rather than loaded lossily, since
+    /// re-saving would silently drop whatever the newer format added.
+    #[error("notebook schema v{found} is newer than this build supports (v{supported})")]
+    UnsupportedSchema { found: u32, supported: u32 },
+}
+
+/// What [`Notebook::load_json`] had to change to make a stored notebook
+/// consistent. Empty (`is_clean()`) for any file this build wrote itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadReport {
+    /// Schema version found in the file.
+    pub from_version: u32,
+    /// Whether the file was migrated to [`CURRENT_SCHEMA_VERSION`].
+    pub migrated: bool,
+    /// Links whose target note does not exist, as `(source, target)`; removed.
+    pub dangling_links: Vec<(NoteId, NoteId)>,
+    /// Notes that linked to themselves; the self-link was removed.
+    pub self_links: Vec<NoteId>,
+    /// Repeated entries in a note's link list; collapsed to one.
+    pub duplicate_links: usize,
+    /// Notes stored under a map key different from their own `id`; re-keyed.
+    pub rekeyed_notes: Vec<NoteId>,
+    /// Notes dropped because another note already claimed the same `id`.
+    pub dropped_duplicate_ids: Vec<NoteId>,
+    /// Notes whose stored position or size was not a finite number (written
+    /// as `null` by older builds); the geometry was cleared.
+    pub invalid_geometry: Vec<NoteId>,
+}
+
+impl LoadReport {
+    /// True when loading changed nothing but (possibly) the schema version.
+    pub fn is_clean(&self) -> bool {
+        self.dangling_links.is_empty()
+            && self.self_links.is_empty()
+            && self.duplicate_links == 0
+            && self.rekeyed_notes.is_empty()
+            && self.dropped_duplicate_ids.is_empty()
+            && self.invalid_geometry.is_empty()
+    }
+}
+
 /// A notebook containing a collection of interconnected notes
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Notebook {
+    /// On-disk format version; see [`CURRENT_SCHEMA_VERSION`].
+    #[serde(default = "legacy_schema_version")]
+    schema_version: u32,
+
     /// All notes indexed by ID
+    #[serde(serialize_with = "serialize_sorted_notes")]
     notes: HashMap<NoteId, Note>,
 
     /// Reverse index: for each note, which notes link TO it
-    #[serde(default)]
+    #[serde(default, serialize_with = "serialize_sorted_backlinks")]
     backlinks: HashMap<NoteId, HashSet<NoteId>>,
 
     /// Persistent saved queries (agents).
@@ -48,6 +148,7 @@ impl Notebook {
     pub fn new(name: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
         Self {
+            schema_version: CURRENT_SCHEMA_VERSION,
             notes: HashMap::new(),
             backlinks: HashMap::new(),
             agents: Vec::new(),
@@ -55,6 +156,83 @@ impl Notebook {
             created_at: now,
             modified_at: now,
         }
+    }
+
+    /// Load a notebook from its JSON form, migrating older schemas and
+    /// repairing recoverable damage. This is the one entry point for stored
+    /// data (file storage, IndexedDB autosave and imports all go through it):
+    /// the backlink index is always rebuilt from the notes, never trusted.
+    pub fn load_json(json: &str) -> Result<(Notebook, LoadReport), LoadError> {
+        let mut nb: Notebook = serde_json::from_str(json)?;
+        if nb.schema_version > CURRENT_SCHEMA_VERSION {
+            return Err(LoadError::UnsupportedSchema {
+                found: nb.schema_version,
+                supported: CURRENT_SCHEMA_VERSION,
+            });
+        }
+        let mut report = LoadReport {
+            from_version: nb.schema_version,
+            migrated: nb.schema_version < CURRENT_SCHEMA_VERSION,
+            ..LoadReport::default()
+        };
+        nb.schema_version = CURRENT_SCHEMA_VERSION;
+        nb.repair(&mut report);
+        Ok((nb, report))
+    }
+
+    /// The schema version this notebook will be written as.
+    pub fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    /// Restore the structural invariants a hand-edited or damaged file may
+    /// violate: map key == note id, ids unique, links point at existing notes,
+    /// no self-links, no duplicate links. Records every change in `report`.
+    fn repair(&mut self, report: &mut LoadReport) {
+        // Re-key under each note's own id. Iterate in key order so the
+        // survivor of an id collision is deterministic.
+        let mut entries: Vec<(NoteId, Note)> = self.notes.drain().collect();
+        entries.sort_by_key(|(key, _)| *key);
+        for (key, note) in entries {
+            let id = note.id;
+            if self.notes.contains_key(&id) {
+                report.dropped_duplicate_ids.push(id);
+                continue;
+            }
+            if key != id {
+                report.rekeyed_notes.push(id);
+            }
+            self.notes.insert(id, note);
+        }
+
+        let existing: HashSet<NoteId> = self.notes.keys().copied().collect();
+        let mut ids: Vec<NoteId> = existing.iter().copied().collect();
+        ids.sort();
+        for id in ids {
+            let Some(note) = self.notes.get_mut(&id) else {
+                continue;
+            };
+            if note.clear_non_finite_geometry() {
+                report.invalid_geometry.push(id);
+            }
+            let mut seen = HashSet::new();
+            let mut kept = Vec::with_capacity(note.links.len());
+            for target in note.links.drain(..) {
+                if target == id {
+                    if !report.self_links.contains(&id) {
+                        report.self_links.push(id);
+                    }
+                } else if !existing.contains(&target) {
+                    report.dangling_links.push((id, target));
+                } else if !seen.insert(target) {
+                    report.duplicate_links += 1;
+                } else {
+                    kept.push(target);
+                }
+            }
+            note.links = kept;
+        }
+        self.rebuild_backlinks();
     }
 
     /// Get the number of notes
@@ -199,6 +377,35 @@ impl Notebook {
         }
         self.touch();
         newly_linked
+    }
+
+    /// Define computed field `name` on note `id` as the λδ `formula`.
+    pub fn set_computed(
+        &mut self,
+        id: &NoteId,
+        name: impl Into<String>,
+        formula: impl Into<String>,
+    ) -> Result<(), NotebookError> {
+        let note = self
+            .notes
+            .get_mut(id)
+            .ok_or(NotebookError::NoteNotFound(*id))?;
+        note.set_computed(name, formula);
+        self.touch();
+        Ok(())
+    }
+
+    /// Remove computed field `name` from note `id`. Returns whether it existed.
+    pub fn remove_computed(&mut self, id: &NoteId, name: &str) -> Result<bool, NotebookError> {
+        let note = self
+            .notes
+            .get_mut(id)
+            .ok_or(NotebookError::NoteNotFound(*id))?;
+        let existed = note.remove_computed(name);
+        if existed {
+            self.touch();
+        }
+        Ok(existed)
     }
 
     /// Get all notes that link TO the given note

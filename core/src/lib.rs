@@ -37,7 +37,7 @@ pub mod wasm;
 
 // PUBLIC API: Re-export primary types for the desktop shell and web consumers.
 pub use note::{Note, NoteId, Point2D};
-pub use notebook::Notebook;
+pub use notebook::{LoadError, LoadReport, Notebook, CURRENT_SCHEMA_VERSION};
 pub use storage::Storage;
 
 /// Crate version from Cargo metadata.

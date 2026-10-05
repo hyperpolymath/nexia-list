@@ -9,7 +9,7 @@
 //! on-disk JSON format (snake_case, see `storage`) is unaffected.
 
 use crate::note::{Note, Point2D};
-use crate::notebook::Notebook;
+use crate::notebook::{LoadReport, Notebook};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -30,6 +30,18 @@ fn to_js<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
 fn err(msg: impl std::fmt::Display) -> JsValue {
     // A real JS Error (not a bare string) so callers can read .message.
     JsValue::from(JsError::new(&msg.to_string()))
+}
+
+/// Reject geometry JSON cannot store (NaN/±Infinity): accepting it would make
+/// the next save unloadable.
+fn finite_pair(a: f64, b: f64, what: &str) -> Result<(), JsValue> {
+    if a.is_finite() && b.is_finite() {
+        Ok(())
+    } else {
+        Err(err(format!(
+            "Note {what} must be finite numbers, got ({a}, {b})"
+        )))
+    }
 }
 
 fn parse_id(id: &str) -> Result<Uuid, JsValue> {
@@ -71,6 +83,9 @@ struct NoteView {
     #[serde(skip_serializing_if = "Option::is_none")]
     prototype: Option<String>,
     attributes: HashMap<String, serde_json::Value>,
+    /// Computed-field formula sources (name → λδ). Values are not included:
+    /// call `evalComputedFields` so they are never stale.
+    computed: std::collections::BTreeMap<String, String>,
 }
 
 impl From<&Note> for NoteView {
@@ -86,8 +101,20 @@ impl From<&Note> for NoteView {
             links: note.links.iter().map(Uuid::to_string).collect(),
             prototype: note.prototype.map(|id| id.to_string()),
             attributes: note.attributes.clone(),
+            computed: note.computed.clone(),
         }
     }
+}
+
+/// UI-facing result of one computed field: exactly one of `value`/`error`.
+#[derive(Serialize)]
+struct ComputedView {
+    name: String,
+    source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 /// Result of a mutation that touches more than one note. The UI merges it:
@@ -170,6 +197,9 @@ impl From<&Notebook> for NotebookView {
 #[wasm_bindgen]
 pub struct WasmNotebook {
     inner: Notebook,
+    /// What migration/repair changed when this notebook was loaded via
+    /// `from_json`; `None` for a notebook created in this session.
+    load_report: Option<LoadReport>,
 }
 
 #[wasm_bindgen]
@@ -178,16 +208,91 @@ impl WasmNotebook {
     pub fn new(name: String) -> WasmNotebook {
         WasmNotebook {
             inner: Notebook::new(name),
+            load_report: None,
         }
     }
 
-    /// Deserialize from the on-disk JSON format. Backlinks are rebuilt
-    /// rather than trusted.
+    /// Deserialize from the on-disk JSON format, migrating older schemas and
+    /// repairing recoverable damage (see `loadReport`). Backlinks are rebuilt
+    /// rather than trusted. Throws on unrecoverable input — corrupt JSON or a
+    /// schema newer than this build — so the caller can quarantine the data.
     pub fn from_json(json: &str) -> Result<WasmNotebook, JsValue> {
-        let mut inner: Notebook =
-            serde_json::from_str(json).map_err(|e| err(format!("Invalid notebook JSON: {e}")))?;
-        inner.rebuild_backlinks();
-        Ok(WasmNotebook { inner })
+        let (inner, report) = Notebook::load_json(json).map_err(err)?;
+        Ok(WasmNotebook {
+            inner,
+            load_report: Some(report),
+        })
+    }
+
+    /// What loading changed: `{ fromVersion, migrated, danglingLinks,
+    /// selfLinks, duplicateLinks, rekeyedNotes, droppedDuplicateIds }`, or
+    /// `null` for a notebook that was not loaded from JSON.
+    #[wasm_bindgen(js_name = loadReport)]
+    pub fn load_report(&self) -> Result<JsValue, JsValue> {
+        match &self.load_report {
+            Some(report) => to_js(report),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Define computed field `name` on note `id` as λδ `formula`. The source
+    /// is persisted with the note; returns the updated note.
+    #[wasm_bindgen(js_name = setComputedField)]
+    pub fn set_computed_field(
+        &mut self,
+        id: &str,
+        name: &str,
+        formula: &str,
+    ) -> Result<JsValue, JsValue> {
+        if name.trim().is_empty() {
+            return Err(err("Computed field name must not be empty"));
+        }
+        self.with_note(id, |note| note.set_computed(name, formula))
+    }
+
+    /// Remove computed field `name` from note `id`; returns the updated note.
+    #[wasm_bindgen(js_name = removeComputedField)]
+    pub fn remove_computed_field(&mut self, id: &str, name: &str) -> Result<JsValue, JsValue> {
+        self.with_note(id, |note| {
+            note.remove_computed(name);
+        })
+    }
+
+    /// Evaluate every computed field of note `id` (read-only formulas, `self`
+    /// bound to the note): `[{ name, source, value } | { name, source, error }]`
+    /// in name order. A failing field reports its error without affecting the
+    /// others.
+    #[wasm_bindgen(js_name = evalComputedFields)]
+    pub fn eval_computed_fields(&mut self, id: &str) -> Result<JsValue, JsValue> {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let uuid = parse_id(id)?;
+        if self.inner.get_note(&uuid).is_none() {
+            return Err(err(format!("Note not found: {id}")));
+        }
+        let shared = Rc::new(RefCell::new(std::mem::take(&mut self.inner)));
+        let fields = crate::lambdadelta_host::eval_computed_fields(shared.clone(), &uuid);
+        match Rc::try_unwrap(shared) {
+            Ok(cell) => self.inner = cell.into_inner(),
+            Err(still_shared) => self.inner = still_shared.borrow().clone(),
+        }
+        let views: Vec<ComputedView> = fields
+            .into_iter()
+            .map(|f| {
+                let (value, error) = match f.result {
+                    Ok(v) => (Some(v), None),
+                    Err(e) => (None, Some(e)),
+                };
+                ComputedView {
+                    name: f.name,
+                    source: f.source,
+                    value,
+                    error,
+                }
+            })
+            .collect();
+        to_js(&views)
     }
 
     /// Serialize to the on-disk JSON format (pretty-printed, snake_case).
@@ -300,6 +405,7 @@ impl WasmNotebook {
     }
 
     pub fn create_note_at(&mut self, title: &str, x: f64, y: f64) -> Result<JsValue, JsValue> {
+        finite_pair(x, y, "position")?;
         let note = Note::new(title).with_position(x, y);
         let id = self.inner.add_note(note);
         self.note_view(&id.to_string())
@@ -356,6 +462,7 @@ impl WasmNotebook {
     }
 
     pub fn move_note(&mut self, id: &str, x: f64, y: f64) -> Result<JsValue, JsValue> {
+        finite_pair(x, y, "position")?;
         self.with_note(id, |note| {
             note.position = Some(Point2D::new(x, y));
             note.touch();
@@ -363,6 +470,7 @@ impl WasmNotebook {
     }
 
     pub fn resize_note(&mut self, id: &str, width: f64, height: f64) -> Result<JsValue, JsValue> {
+        finite_pair(width, height, "size")?;
         self.with_note(id, |note| {
             note.size = Some((width, height));
             note.touch();

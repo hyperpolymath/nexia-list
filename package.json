@@ -14,6 +14,7 @@
     "test": "bun run test:rust && bun run test:ui",
     "test:rust": "cd core && cargo test",
     "test:ui": "bun test ui/tests",
+    "bench:rust": "cd core && cargo bench --bench notebook_perf",
     "lint": "biome lint scripts ui/tests web",
     "fmt": "biome format --write scripts ui/tests web && cd core && cargo fmt",
     "fmt:check": "biome format scripts ui/tests web && cargo fmt --check",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Storage - persistence layer for notebooks
 
-use crate::notebook::Notebook;
+use crate::notebook::{LoadError, LoadReport, Notebook};
 use std::path::Path;
 use thiserror::Error;
 
@@ -16,6 +16,9 @@ pub enum StorageError {
 
     #[error("File not found: {0}")]
     NotFound(String),
+
+    #[error("Cannot load notebook: {0}")]
+    Load(#[from] LoadError),
 }
 
 /// Storage trait for notebook persistence
@@ -45,20 +48,30 @@ impl Default for JsonStorage {
 impl Storage for JsonStorage {
     fn save(&self, notebook: &Notebook, path: &Path) -> Result<(), StorageError> {
         let json = serde_json::to_string_pretty(notebook)?;
-        std::fs::write(path, json)?;
+        // Write a sibling temp file and rename it over the target: a crash
+        // mid-write leaves the previous notebook intact, never a truncated one.
+        let mut tmp_name = path.file_name().unwrap_or_default().to_os_string();
+        tmp_name.push(".tmp");
+        let tmp = path.with_file_name(tmp_name);
+        std::fs::write(&tmp, json)?;
+        std::fs::rename(&tmp, path)?;
         Ok(())
     }
 
     fn load(&self, path: &Path) -> Result<Notebook, StorageError> {
+        Ok(self.load_with_report(path)?.0)
+    }
+}
+
+impl JsonStorage {
+    /// Load like [`Storage::load`], also returning what migration and repair
+    /// changed (see [`Notebook::load_json`]).
+    pub fn load_with_report(&self, path: &Path) -> Result<(Notebook, LoadReport), StorageError> {
         if !path.exists() {
             return Err(StorageError::NotFound(path.display().to_string()));
         }
-
         let json = std::fs::read_to_string(path)?;
-        let mut notebook: Notebook = serde_json::from_str(&json)?;
-        // The stored index may be stale (hand-edited or older files).
-        notebook.rebuild_backlinks();
-        Ok(notebook)
+        Ok(Notebook::load_json(&json)?)
     }
 }
 
