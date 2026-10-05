@@ -222,7 +222,7 @@ jobs:
         working-directory: tests/e2e
         run: |
           bun install --frozen-lockfile --ignore-scripts
-          bunx --no-install --bun playwright install --with-deps chromium
+          bun run browsers
           bun test --timeout 120000 app.test.js
 
       - name: Lint
