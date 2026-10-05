@@ -57,9 +57,10 @@ function toNote(v) {
 
 /** Title order, then id, so the order is total and stable. */
 function byTitle(a, b) {
-  return (
-    a.title.localeCompare(b.title) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  );
+  const byName = a.title.localeCompare(b.title);
+  if (byName !== 0) return byName;
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
 }
 
 /** Record a change: new revision, derived caches invalid. */
@@ -225,11 +226,12 @@ function schedule() {
 }
 
 // A pending write must not be lost when the tab is hidden or closed.
+// (flush() reports its own failures, so its promise is deliberately not awaited.)
 addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden" && timer) flush();
+  if (document.visibilityState === "hidden" && timer) void flush();
 });
 addEventListener("pagehide", () => {
-  if (timer) flush();
+  if (timer) void flush();
 });
 
 /** Human-readable summary of what the core's loader repaired. */

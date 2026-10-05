@@ -352,6 +352,8 @@ body {
   padding: 1rem;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  /* Cards are independent boxes: isolate their layout and paint. */
+  contain: layout paint style;
 }
 
 .canvas-note:hover {
@@ -777,11 +779,6 @@ body {
   font-size: 0.8rem;
   min-width: 3.5rem;
   text-align: right;
-}
-
-/* Cards are independent boxes: isolate their layout and paint. */
-.canvas-note {
-  contain: layout paint style;
 }
 
 /* Far zoom (level of detail): cards render title-only and lose the costly

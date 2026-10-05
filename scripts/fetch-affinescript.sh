@@ -16,10 +16,10 @@ AFFINESCRIPT_REF="f3368d98a84768fc63eaf9b059d2040770a8b5c6"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 dest="${AFFINESCRIPT_HOME:-$root/.affinescript}"
 
-if [ ! -d "$dest/.git" ]; then
+if [[ ! -d "$dest/.git" ]]; then
   git clone --filter=blob:none --no-checkout "$AFFINESCRIPT_REPO" "$dest"
 fi
-if [ "$(git -C "$dest" rev-parse HEAD 2>/dev/null || true)" != "$AFFINESCRIPT_REF" ]; then
+if [[ "$(git -C "$dest" rev-parse HEAD 2>/dev/null || true)" != "$AFFINESCRIPT_REF" ]]; then
   git -C "$dest" fetch --quiet origin "$AFFINESCRIPT_REF"
   git -C "$dest" -c advice.detachedHead=false checkout --quiet "$AFFINESCRIPT_REF"
 fi

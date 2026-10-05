@@ -18,12 +18,12 @@ tea_src="$as_home/affinescript-tea/src"
 router_src="$as_home/affinescript-router/src"
 dist="$root/web/dist"
 
-if [ ! -x "$compiler" ]; then
+if [[ ! -x "$compiler" ]]; then
   echo "error: AffineScript compiler not found at $compiler" >&2
   echo "  run scripts/fetch-affinescript.sh, or set AFFINESCRIPT_HOME to a built checkout" >&2
   exit 1
 fi
-if [ ! -f "$root/web/wasm/nexia_core_bg.wasm" ]; then
+if [[ ! -f "$root/web/wasm/nexia_core_bg.wasm" ]]; then
   echo "error: web/wasm is empty — run 'bun run build:wasm' first" >&2
   exit 1
 fi
