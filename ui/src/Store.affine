@@ -55,16 +55,22 @@ pub struct Boot { ok: Bool, error: String, restored: Bool, quarantined: Bool, no
 
 /// Load the WASM core and restore the autosaved notebook, then call `done`.
 pub extern fn nx_boot(wasm_url: String, done: Boot -> Unit) -> Unit;
-/// Debounced write of the current notebook to IndexedDB.
+/// Schedule a debounced IndexedDB write; serialisation and write failures
+/// are caught by the host, without an outcome callback.
 pub extern fn nx_autosave() -> Unit;
 /// Download the notebook as `<name>.nexia.json`.
 pub extern fn nx_save_file() -> Outcome;
 /// Pick a `.nexia.json` file and load it; `done` gets the outcome (`ok ==
 /// false` with an empty `error` means the user cancelled; on success
-/// `notice` summarises any repair).
+/// `notice` summarises any repair). Read or load errors become failed outcomes.
 pub extern fn nx_open_file(done: Outcome -> Unit) -> Unit;
+/// Download all notes together in one Markdown file; errors produce a failed outcome.
 pub extern fn nx_export_markdown() -> Outcome;
+/// Download an OPML outline; errors produce a failed outcome.
 pub extern fn nx_export_opml() -> Outcome;
+/// Replace the notebook with the selected directory’s .md files and schedule
+/// autosave. `done` receives errors as failed outcomes; cancellation or no
+/// matching files gives `ok == false` with an empty `error`.
 pub extern fn nx_import_vault(done: Outcome -> Unit) -> Unit;
 /// Replace the notebook with a new empty one.
 pub extern fn nx_reset(name: String) -> Outcome;
@@ -73,51 +79,78 @@ pub extern fn nx_reset(name: String) -> Outcome;
 
 /// Read-model revision; bumps on every successful mutation or load.
 pub extern fn nx_rev() -> Int;
+/// The notebook name, or "" before boot.
 pub extern fn nx_name() -> String;
+/// The number of notes in the read model.
 pub extern fn nx_count() -> Int;
 /// All notes, sorted by title (cached per revision).
 pub extern fn nx_notes() -> [Note];
+/// Whether the read model contains this note id.
 pub extern fn nx_has(id: String) -> Bool;
 /// The note with `id` (check `nx_has` first; an unknown id yields an empty
 /// unplaced note).
 pub extern fn nx_note(id: String) -> Note;
+/// Incoming note ids; returns [] for an unknown id or a core error.
 pub extern fn nx_backlinks(id: String) -> [String];
 /// The first `limit` matching notes (by title) and the total number of
 /// matches.
 pub struct SearchPage { ids: [String], total: Int }
 
 /// Notes whose title or content contains `query` (case-insensitive): the
-/// first `limit` ids by title, and the total number of matches.
+/// first `limit` ids by title, and the total number of matches. An empty query
+/// or core error returns no matches; a zero limit returns only the count.
 pub extern fn nx_search(query: String, limit: Int) -> SearchPage;
+/// Saved queries in insertion order; returns [] on a core error.
 pub extern fn nx_agents() -> [Agent];
+/// Ids matching the stored query; returns [] for an unknown agent or a core error.
 pub extern fn nx_run_agent(id: String) -> [String];
-/// Every computed field of note `id`, evaluated (cached per revision).
+/// Every computed field of note `id` in name order (cached per revision).
+/// Failed evaluations have `ok == false` and an error in `value`; core-call
+/// failures return [].
 pub extern fn nx_fields(id: String) -> [FieldValue];
-/// Evaluate `source` as a formula of note `id` without storing it.
+/// Evaluate `source` as a formula of note `id` without storing it. Blank source
+/// succeeds with an empty value; errors return `ok == false` and an error in `value`.
 pub extern fn nx_preview(id: String, source: String) -> FieldValue;
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
+/// Create a note; `x` and `y` are canvas units used only when `placed` is true.
+/// Returns the created id on success; non-finite placement produces a failed outcome.
 pub extern fn nx_create(title: String, placed: Bool, x: Float, y: Float) -> Outcome;
+/// Rename a note and refresh its cached view; return a mutation outcome.
 pub extern fn nx_set_title(id: String, title: String) -> Outcome;
 /// Set content; `[[Title]]` references create links (the core resolves them).
+/// Removing a reference from the text does not remove its link.
 pub extern fn nx_set_content(id: String, content: String) -> Outcome;
+/// Set a note position in canvas units; non-finite coordinates produce a failed outcome.
 pub extern fn nx_move(id: String, x: Float, y: Float) -> Outcome;
+/// Delete a note and all its links; the outcome id is empty even on success.
 pub extern fn nx_delete(id: String) -> Outcome;
+/// Add a directed link; self-links and missing notes produce failed outcomes.
 pub extern fn nx_link(from: String, to: String) -> Outcome;
+/// Remove a directed link if present; a missing source note produces a failed outcome.
 pub extern fn nx_unlink(from: String, to: String) -> Outcome;
+/// Store formula source without evaluating it; blank names or missing notes
+/// produce failed outcomes.
 pub extern fn nx_set_field(id: String, name: String, source: String) -> Outcome;
+/// Remove a computed field if present; a missing note produces a failed outcome.
 pub extern fn nx_remove_field(id: String, name: String) -> Outcome;
+/// Store a query and schedule autosave; return an outcome with an empty id.
 pub extern fn nx_add_agent(name: String, query: String) -> Outcome;
+/// Remove an agent if present and schedule autosave; return a mutation outcome.
 pub extern fn nx_remove_agent(id: String) -> Outcome;
 
 // ── Small string helpers the views need ─────────────────────────────────────
 
 /// Case-insensitive substring test.
 pub extern fn nx_contains_ci(haystack: String, needle: String) -> Bool;
-/// The first `n` characters of `s` (by code point).
+/// The first `n` characters of `s` (by code point). Negative `n` omits that
+/// many code points from the end.
 pub extern fn nx_prefix(s: String, n: Int) -> String;
+/// Count Unicode code points, which may differ from visible characters.
 pub extern fn nx_char_count(s: String) -> Int;
+/// Remove leading and trailing JavaScript whitespace.
 pub extern fn nx_trim(s: String) -> String;
-/// A float rendered for CSS/SVG (no exponent, at most 3 decimals).
+/// Render a number with non-integers rounded to three decimal places and
+/// trailing zeroes removed. Large or small results may use exponential notation.
 pub extern fn nx_num(x: Float) -> String;

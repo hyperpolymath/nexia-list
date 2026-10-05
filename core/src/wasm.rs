@@ -32,8 +32,9 @@ fn err(msg: impl std::fmt::Display) -> JsValue {
     JsValue::from(JsError::new(&msg.to_string()))
 }
 
-/// Reject geometry JSON cannot store (NaN/±Infinity): accepting it would make
-/// the next save unloadable.
+/// Return a JavaScript error if either geometry component is NaN or infinite.
+/// `what` names the geometry in the error message; finite values of any sign
+/// are accepted.
 fn finite_pair(a: f64, b: f64, what: &str) -> Result<(), JsValue> {
     if a.is_finite() && b.is_finite() {
         Ok(())
@@ -89,6 +90,8 @@ struct NoteView {
 }
 
 impl From<&Note> for NoteView {
+    /// Copy note data for the UI, with string ids, RFC 3339 timestamps and
+    /// computed-field sources rather than evaluated values.
     fn from(note: &Note) -> Self {
         Self {
             id: note.id.to_string(),
@@ -204,6 +207,7 @@ pub struct WasmNotebook {
 
 #[wasm_bindgen]
 impl WasmNotebook {
+    /// Create an empty notebook with no load report.
     #[wasm_bindgen(constructor)]
     pub fn new(name: String) -> WasmNotebook {
         WasmNotebook {
@@ -225,8 +229,9 @@ impl WasmNotebook {
     }
 
     /// What loading changed: `{ fromVersion, migrated, danglingLinks,
-    /// selfLinks, duplicateLinks, rekeyedNotes, droppedDuplicateIds }`, or
-    /// `null` for a notebook that was not loaded from JSON.
+    /// selfLinks, duplicateLinks, rekeyedNotes, droppedDuplicateIds,
+    /// invalidGeometry }`, or `null` for a notebook not loaded from JSON.
+    /// Throws if converting the report to JavaScript fails.
     #[wasm_bindgen(js_name = loadReport)]
     pub fn load_report(&self) -> Result<JsValue, JsValue> {
         match &self.load_report {
@@ -236,7 +241,10 @@ impl WasmNotebook {
     }
 
     /// Define computed field `name` on note `id` as λδ `formula`. The source
-    /// is persisted with the note; returns the updated note.
+    /// is persisted without validation or evaluation; returns the updated note.
+    /// Throws for a blank name, invalid or unknown note id, or failure to
+    /// convert the updated note to JavaScript. Conversion failure does not
+    /// undo the mutation.
     #[wasm_bindgen(js_name = setComputedField)]
     pub fn set_computed_field(
         &mut self,
@@ -250,7 +258,10 @@ impl WasmNotebook {
         self.with_note(id, |note| note.set_computed(name, formula))
     }
 
-    /// Remove computed field `name` from note `id`; returns the updated note.
+    /// Remove computed field `name` from note `id`; returns the updated note
+    /// even if the field was absent. Throws for an invalid or unknown note id
+    /// or failure to convert the updated note to JavaScript. Conversion
+    /// failure does not undo the removal.
     #[wasm_bindgen(js_name = removeComputedField)]
     pub fn remove_computed_field(&mut self, id: &str, name: &str) -> Result<JsValue, JsValue> {
         self.with_note(id, |note| {
@@ -261,7 +272,8 @@ impl WasmNotebook {
     /// Evaluate every computed field of note `id` (read-only formulas, `self`
     /// bound to the note): `[{ name, source, value } | { name, source, error }]`
     /// in name order. A failing field reports its error without affecting the
-    /// others.
+    /// others. Throws for an invalid or unknown note id or failure to convert
+    /// the results to JavaScript.
     #[wasm_bindgen(js_name = evalComputedFields)]
     pub fn eval_computed_fields(&mut self, id: &str) -> Result<JsValue, JsValue> {
         use std::cell::RefCell;
@@ -404,6 +416,9 @@ impl WasmNotebook {
         self.note_view(&id.to_string())
     }
 
+    /// Create a placed note in canvas units and return its view. Throws for
+    /// non-finite coordinates or failure to convert the new note to JavaScript;
+    /// conversion failure leaves the note created.
     pub fn create_note_at(&mut self, title: &str, x: f64, y: f64) -> Result<JsValue, JsValue> {
         finite_pair(x, y, "position")?;
         let note = Note::new(title).with_position(x, y);
@@ -461,6 +476,10 @@ impl WasmNotebook {
         })
     }
 
+    /// Set a note position in canvas units and return its updated view.
+    /// Throws for non-finite coordinates, an invalid or unknown note id, or
+    /// failure to convert the view to JavaScript. Conversion failure leaves
+    /// the position changed.
     pub fn move_note(&mut self, id: &str, x: f64, y: f64) -> Result<JsValue, JsValue> {
         finite_pair(x, y, "position")?;
         self.with_note(id, |note| {
@@ -469,6 +488,10 @@ impl WasmNotebook {
         })
     }
 
+    /// Set a note size in canvas units and return its updated view. Zero and
+    /// negative dimensions are accepted. Throws for non-finite dimensions,
+    /// an invalid or unknown note id, or failure to convert the view to
+    /// JavaScript. Conversion failure leaves the size changed.
     pub fn resize_note(&mut self, id: &str, width: f64, height: f64) -> Result<JsValue, JsValue> {
         finite_pair(width, height, "size")?;
         self.with_note(id, |note| {
@@ -557,9 +580,10 @@ impl WasmNotebook {
     }
 
     /// Search returning at most `limit` ids (sorted by title, then id) plus
-    /// the total number of matches: `{ ids, total }`. Marshalling thousands
-    /// of ids dominates a broad query in the browser; a list view needs a
-    /// page and a count.
+    /// the total number of matches: `{ ids, total }`. Matching is a
+    /// case-insensitive substring search over title and content; sorting uses
+    /// the original titles. An empty query returns no matches. A zero limit
+    /// returns only the count. Throws if conversion to JavaScript fails.
     #[wasm_bindgen(js_name = searchPage)]
     pub fn search_page(&self, query: &str, limit: usize) -> Result<JsValue, JsValue> {
         #[derive(Serialize)]

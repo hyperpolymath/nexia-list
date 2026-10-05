@@ -65,7 +65,7 @@ function byTitle(a, b) {
   return a.id < b.id ? -1 : 1;
 }
 
-/** Record a change: new revision, derived caches invalid. */
+/** Advance the read-model revision and invalidate evaluated computed fields. */
 function touched() {
   rev += 1;
   fieldCache.clear();
@@ -140,7 +140,11 @@ const fail = (e) => ({
   id: "",
 });
 
-/** Run a core mutation returning one note view. */
+/**
+ * Run a core mutation returning one note view, update the read model and
+ * schedule autosave. Return an outcome identifying the note; caught errors
+ * become failed outcomes without rolling back changes already made.
+ */
 function noteOp(fn) {
   try {
     const note = upsert(fn());
@@ -152,7 +156,11 @@ function noteOp(fn) {
   }
 }
 
-/** Run a core mutation returning a delta `{ changed, removed }`. */
+/**
+ * Run a core mutation returning a delta `{ changed, removed }`, update the
+ * read model and schedule autosave. Return an outcome carrying the supplied
+ * id; caught errors become failed outcomes without rolling back prior changes.
+ */
 function deltaOp(fn, id = "") {
   try {
     const delta = fn();
@@ -168,7 +176,7 @@ function deltaOp(fn, id = "") {
 
 // ── IndexedDB ──────────────────────────────────────────────────────────────
 
-/** Open the key-value store. */
+/** Open the key-value store, creating it on upgrade; reject on an open error. */
 function idbOpen() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
@@ -178,7 +186,11 @@ function idbOpen() {
   });
 }
 
-/** Run one request in a transaction and resolve with its result. */
+/**
+ * Run op against the key-value store with the given transaction mode. Resolve
+ * with the request result only after the transaction commits, then close the
+ * connection. Reject on open, transaction or callback errors, including aborts.
+ */
 async function idbRequest(mode, op) {
   const db = await idbOpen();
   try {
@@ -198,9 +210,12 @@ async function idbRequest(mode, op) {
   }
 }
 
+/** Read a stored value, or undefined when absent; propagate IndexedDB failures. */
 const idbGet = (key) => idbRequest("readonly", (s) => s.get(key));
+/** Store or replace a value; resolve with its key on commit or reject on failure. */
 const idbSet = (key, value) =>
   idbRequest("readwrite", (s) => s.put(value, key));
+/** Delete a key if present; resolve on commit or reject on IndexedDB failure. */
 const idbDelete = (key) => idbRequest("readwrite", (s) => s.delete(key));
 
 // ── Autosave ───────────────────────────────────────────────────────────────
@@ -208,7 +223,11 @@ const idbDelete = (key) => idbRequest("readwrite", (s) => s.delete(key));
 let timer = null;
 let persistence = true;
 
-/** Write the notebook now; marks `data-autosaved` with the saved revision. */
+/**
+ * Cancel a pending save and write the current notebook, unless unavailable or
+ * persistence is disabled. On success mark data-autosaved with the saved
+ * revision. Serialisation and write failures are caught without retrying.
+ */
 async function flush() {
   clearTimeout(timer);
   timer = null;
@@ -227,10 +246,10 @@ async function flush() {
 let pendingSince = 0;
 
 /**
- * Debounce an autosave after a change, but never beyond
- * AUTOSAVE_MAX_WAIT_MS from the first unsaved change: continuous typing
- * still gets written while the page is active. (Page-exit handlers below
- * are a best-effort extra; IndexedDB does not guarantee a transaction
+ * Schedule an autosave after AUTOSAVE_DELAY_MS of inactivity, capped at
+ * AUTOSAVE_MAX_WAIT_MS from the first pending change. These are timer delays,
+ * not a guarantee of write completion; browser scheduling can delay execution.
+ * (Page-exit handlers below are a best-effort extra; IndexedDB does not guarantee a transaction
  * started during unload completes.)
  */
 function schedule() {
@@ -250,7 +269,7 @@ addEventListener("pagehide", () => {
   if (timer) void flush();
 });
 
-/** Human-readable summary of what the core's loader repaired. */
+/** Summarise migration and repairs, or return an empty string when none are reported. */
 function describeRepairs(r) {
   if (!r) return "";
   const parts = [];
@@ -299,12 +318,18 @@ function pick(accept, { multiple = false, directory = false } = {}) {
   });
 }
 
+/** Replace filename separators and reserved punctuation; use notebook for an empty name. */
 const safeName = () => (nb?.name() || "notebook").replace(/[\\/:*?"<>|]/g, "_");
 
 // ── Externs ────────────────────────────────────────────────────────────────
 
 const externs = {
-  /** Load the WASM core, restore (or quarantine) the autosave, then `done`. */
+  /**
+   * Load WASM and restore the autosave, then call done with a Boot result.
+   * Unreadable notebook data is backed up before its autosave key is deleted.
+   * Storage access or quarantine failures disable persistence and add a notice;
+   * other startup failures are reported through done with ok=false.
+   */
   nx_boot: (wasmUrl, done) => {
     (async () => {
       const t0 = performance.now();
@@ -356,7 +381,9 @@ const externs = {
       }),
     );
   },
+  /** Schedule an autosave; write failures are caught by flush. */
   nx_autosave: () => schedule(),
+  /** Download notebook JSON; return a failed outcome on serialisation or download errors. */
   nx_save_file: () => {
     try {
       download(`${safeName()}.nexia.json`, nb.to_json(), "application/json");
@@ -365,6 +392,9 @@ const externs = {
       return fail(e);
     }
   },
+  /** Pick and load a notebook, refresh the read model and schedule autosave.
+   * Call done with the outcome; cancellation has ok=false and an empty error.
+   * Read, load and refresh failures become failed outcomes. */
   nx_open_file: (done) => {
     pick(".json,application/json")
       .then(async ([file]) => {
@@ -377,6 +407,7 @@ const externs = {
       })
       .catch((e) => done(fail(e)));
   },
+  /** Download all notes in one Markdown file; return a failed outcome on errors. */
   nx_export_markdown: () => {
     try {
       const files = nb.export_markdown();
@@ -389,6 +420,7 @@ const externs = {
       return fail(e);
     }
   },
+  /** Download an OPML outline; return a failed outcome on errors. */
   nx_export_opml: () => {
     try {
       download(`${safeName()}.opml`, nb.export_opml(), "text/x-opml");
@@ -397,6 +429,9 @@ const externs = {
       return fail(e);
     }
   },
+  /** Replace the notebook with the chosen directory’s .md files and schedule autosave.
+   * Call done with the outcome; no .md files means ok=false with an empty error.
+   * Read, import and refresh failures become failed outcomes. */
   nx_import_vault: (done) => {
     pick(".md,text/markdown", { multiple: true, directory: true })
       .then(async (chosen) => {
@@ -413,6 +448,7 @@ const externs = {
       })
       .catch((e) => done(fail(e)));
   },
+  /** Replace the notebook, refresh the read model and schedule autosave; return an outcome. */
   nx_reset: (name) => {
     try {
       nb = new WasmNotebook(name);
@@ -424,12 +460,19 @@ const externs = {
     }
   },
 
+  /** Return the read-model revision used to invalidate UI caches. */
   nx_rev: () => rev,
+  /** Return the notebook name, or an empty string before boot. */
   nx_name: () => nb?.name() ?? "",
+  /** Return the number of notes in the read model. */
   nx_count: () => notes.size,
+  /** Return the cached notes in title order, breaking ties by id. */
   nx_notes: () => sortedNotes(),
+  /** Whether the read model contains this note id. */
   nx_has: (id) => notes.has(id),
+  /** Return the cached note, or an empty unplaced note for an unknown id. */
   nx_note: (id) => notes.get(id) ?? NO_NOTE,
+  /** Return incoming note ids, or an empty array if the core call fails. */
   nx_backlinks: (id) => {
     try {
       return nb.backlinks(id);
@@ -437,6 +480,8 @@ const externs = {
       return [];
     }
   },
+  /** Return up to limit matches in title/id order and the full match count.
+   * An empty query or a core error produces { ids: [], total: 0 }. */
   nx_search: (q, limit) => {
     try {
       return nb.searchPage(q, limit);
@@ -444,6 +489,7 @@ const externs = {
       return { ids: [], total: 0 };
     }
   },
+  /** Return stored agents in insertion order, or an empty array on a core error. */
   nx_agents: () => {
     try {
       return nb.agents();
@@ -451,6 +497,7 @@ const externs = {
       return [];
     }
   },
+  /** Return matching note ids, or an empty array for an unknown agent or core error. */
   nx_run_agent: (id) => {
     try {
       return nb.run_agent(id);
@@ -458,6 +505,9 @@ const externs = {
       return [];
     }
   },
+  /** Return fields in name order, cached for the current read-model revision.
+   * Each value holds the printed result or, when ok=false, the evaluation error.
+   * A failed core call is cached as an empty array. */
   nx_fields: (id) => {
     let fields = fieldCache.get(id);
     if (!fields) {
@@ -475,6 +525,8 @@ const externs = {
     }
     return fields;
   },
+  /** Evaluate a read-only formula without storing it; errors become ok=false results.
+   * Blank source succeeds with an empty value without calling the core. */
   nx_preview: (id, source) => {
     if (source.trim() === "") return { name: "", source, ok: true, value: "" };
     try {
@@ -484,20 +536,31 @@ const externs = {
     }
   },
 
+  /** Create a note, using canvas coordinates only when placed is true; return a noteOp outcome. */
   nx_create: (title, placed, x, y) =>
     noteOp(() =>
       placed ? nb.create_note_at(title, x, y) : nb.create_note(title),
     ),
+  /** Rename a note and refresh its cached view; return a noteOp outcome. */
   nx_set_title: (id, title) => noteOp(() => nb.update_title(id, title)),
+  /** Set content and add resolved [[Title]] links; return a deltaOp outcome.
+   * Removing a reference from the text does not remove its link. */
   nx_set_content: (id, content) =>
     deltaOp(() => nb.update_content(id, content), id),
+  /** Set canvas coordinates and refresh the note view; return a noteOp outcome. */
   nx_move: (id, x, y) => noteOp(() => nb.move_note(id, x, y)),
+  /** Delete a note and its links; return a deltaOp outcome with an empty id. */
   nx_delete: (id) => deltaOp(() => nb.delete_note(id)),
+  /** Add a directed link; return a deltaOp outcome identifying the source note. */
   nx_link: (from, to) => deltaOp(() => nb.link(from, to), from),
+  /** Remove a directed link; return a deltaOp outcome identifying the source note. */
   nx_unlink: (from, to) => deltaOp(() => nb.unlink(from, to), from),
+  /** Store formula source without evaluating it; return a noteOp outcome. */
   nx_set_field: (id, name, source) =>
     noteOp(() => nb.setComputedField(id, name, source)),
+  /** Remove a computed field if present; return a noteOp outcome. */
   nx_remove_field: (id, name) => noteOp(() => nb.removeComputedField(id, name)),
+  /** Store a query, invalidate derived caches and schedule autosave; return an outcome. */
   nx_add_agent: (name, query) => {
     try {
       nb.add_agent(name, query);
@@ -508,6 +571,7 @@ const externs = {
       return fail(e);
     }
   },
+  /** Remove an agent if present, invalidate caches and schedule autosave; return an outcome. */
   nx_remove_agent: (id) => {
     try {
       nb.remove_agent(id);
@@ -519,10 +583,16 @@ const externs = {
     }
   },
 
+  /** Test for a substring after lowercasing both strings; an empty needle matches. */
   nx_contains_ci: (h, n) => h.toLowerCase().includes(n.toLowerCase()),
+  /** Return the first n Unicode code points; negative n omits that many from the end. */
   nx_prefix: (s, n) => Array.from(s).slice(0, n).join(""),
+  /** Count Unicode code points, which may differ from visible characters. */
   nx_char_count: (s) => Array.from(s).length,
+  /** Remove leading and trailing JavaScript whitespace. */
   nx_trim: (s) => s.trim(),
+  /** Render a number, rounding non-integers to three decimal places and dropping trailing zeroes.
+   * Large or small results may use exponential notation. */
   nx_num: (x) =>
     Number.isInteger(x) ? String(x) : String(Number(x.toFixed(3))),
 };

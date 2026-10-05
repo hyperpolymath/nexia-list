@@ -15,6 +15,7 @@ pub enum Direction { Up, Down, Left, Right }
 /// Pan offset (CSS px) and zoom factor of the canvas.
 pub struct Viewport { ox: Float, oy: Float, zoom: Float }
 
+/// Start at the canvas origin with unit zoom.
 pub fn initial_viewport() -> Viewport = Viewport #{ ox: 0.0, oy: 0.0, zoom: 1.0 };
 
 pub const MIN_ZOOM: Float = 0.1;
@@ -27,6 +28,7 @@ pub const NUDGE: Float = 20.0;
 pub const CARD_W: Float = 200.0;
 pub const CARD_H: Float = 120.0;
 
+/// Return the magnitude of `x`.
 fn abs_f(x: Float) -> Float = if x < 0.0 { 0.0 - x } else { x };
 
 /// Score of `target` as the next note from `(ox, oy)` in `dir`: along-axis
@@ -44,7 +46,8 @@ pub fn score(ox: Float, oy: Float, tx: Float, ty: Float, dir: Direction) -> Floa
   if along <= 0.0 { 0.0 - 1.0 } else { along + abs_f(lateral) * 2.0 }
 }
 
-/// The id of the nearest placed note to `from` in `dir`, or "".
+/// Return the placed note with the lowest directional `score`, keeping the
+/// first on a tie. Returns "" if `from` is unplaced or no candidate qualifies.
 pub fn nearest(notes: [Note], from: Note, dir: Direction) -> String {
   if !from.placed {
     return "";
@@ -80,6 +83,7 @@ pub fn zoom_by(v: Viewport, factor: Float) -> Viewport {
   Viewport #{ ox: v.ox, oy: v.oy, zoom: clamped }
 }
 
+/// Add screen-space offsets in CSS pixels, preserving zoom.
 pub fn pan_by(v: Viewport, dx: Float, dy: Float) -> Viewport =
   Viewport #{ ox: v.ox + dx, oy: v.oy + dy, zoom: v.zoom };
 
@@ -89,7 +93,8 @@ pub fn to_canvas(v: Viewport, sx: Float, sy: Float) -> (Float, Float) =
   ((sx - v.ox) / v.zoom, (sy - v.oy) / v.zoom);
 
 /// Whether note `n` intersects the visible area of a `w`×`h` screen with
-/// viewport `v` (with a margin, so cards slide in rather than pop).
+/// viewport `v`, including a 64 CSS-pixel margin and touching edges.
+/// Unplaced notes are excluded; non-positive dimensions use the card defaults.
 pub fn visible(v: Viewport, w: Float, h: Float, n: Note) -> Bool {
   if !n.placed {
     return false;
@@ -107,7 +112,8 @@ pub fn visible(v: Viewport, w: Float, h: Float, n: Note) -> Bool {
 pub struct GraphNode { id: String, title: String, x: Float, y: Float }
 
 /// Place `notes` evenly on a circle inscribed in `width`×`height`, starting
-/// at the top and going clockwise. Coordinates are finite and in the box.
+/// at the top and going clockwise in input order. Finite, non-negative box
+/// dimensions produce coordinates within the box; an empty input returns [].
 pub fn circular(notes: [Note], width: Float, height: Float) -> [GraphNode] {
   let count = len(notes);
   if count == 0 {

@@ -50,7 +50,9 @@ fn size_absent_or_non_finite(size: &Option<(f64, f64)>) -> bool {
 }
 
 /// Read a position whose coordinates may be `null` (as written by builds that
-/// serialized NaN); a `null` becomes NaN for the load-time repair to clear.
+/// serialised NaN); a missing or `null` coordinate becomes NaN for load-time
+/// repair. A `null` position becomes `None`; invalid shapes or coordinate
+/// types propagate the deserialiser error.
 fn deserialize_lenient_point<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Point2D>, D::Error> {
@@ -64,6 +66,8 @@ fn deserialize_lenient_point<'de, D: serde::Deserializer<'de>>(
 }
 
 /// Read a size whose components may be `null`; see [`deserialize_lenient_point`].
+/// A `null` size becomes `None`; `null` components become NaN. Invalid shapes
+/// or component types propagate the deserialiser error.
 fn deserialize_lenient_size<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<(f64, f64)>, D::Error> {
@@ -72,6 +76,7 @@ fn deserialize_lenient_size<'de, D: serde::Deserializer<'de>>(
 }
 
 /// Write attributes in key order, so a saved note is byte-stable.
+/// Propagates errors from the serialiser.
 fn serialize_sorted_attributes<S: serde::Serializer>(
     attributes: &HashMap<String, serde_json::Value>,
     serializer: S,
@@ -226,12 +231,15 @@ impl Note {
     }
 
     /// Define (or redefine) the computed field `name` as the λδ `formula`.
+    /// Stores the source without validation or evaluation and updates the
+    /// modified timestamp.
     pub fn set_computed(&mut self, name: impl Into<String>, formula: impl Into<String>) {
         self.computed.insert(name.into(), formula.into());
         self.touch();
     }
 
-    /// Remove the computed field `name`. Returns whether it existed.
+    /// Remove the computed field `name`. Returns whether it existed, updating
+    /// the modified timestamp only when a field was removed.
     pub fn remove_computed(&mut self, name: &str) -> bool {
         let existed = self.computed.remove(name).is_some();
         if existed {

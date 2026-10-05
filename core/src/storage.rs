@@ -46,7 +46,9 @@ impl Default for JsonStorage {
 }
 
 /// Create a new temp file beside `path`, exclusively (`O_EXCL`; mode 0600
-/// on Unix), with a name unique to this process and attempt.
+/// on Unix), with a name unique to this process and attempt. Returns its path
+/// and writable handle. Tries up to 32 names on collisions, then returns
+/// the last collision error; other open errors are returned immediately.
 fn create_unique_temp(path: &Path) -> std::io::Result<(std::path::PathBuf, std::fs::File)> {
     let base = path
         .file_name()
@@ -77,9 +79,8 @@ fn create_unique_temp(path: &Path) -> std::io::Result<(std::path::PathBuf, std::
     Err(last_err.unwrap_or_else(|| std::io::Error::other("no unique temp file name")))
 }
 
-/// Persist the directory entry created by a rename (Unix: fsync the parent
-/// directory). Elsewhere directories cannot be opened for syncing; the file
-/// itself was already synced.
+/// Sync the parent directory after a rename, using the current directory
+/// for a bare filename. Propagates directory-open and sync errors.
 #[cfg(unix)]
 fn sync_parent_dir(path: &Path) -> std::io::Result<()> {
     match path.parent() {
@@ -88,12 +89,21 @@ fn sync_parent_dir(path: &Path) -> std::io::Result<()> {
     }
 }
 
+/// Skip directory syncing on non-Unix platforms and return success.
 #[cfg(not(unix))]
 fn sync_parent_dir(_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
 impl Storage for JsonStorage {
+    /// Save pretty-printed JSON by syncing a temporary file and renaming it
+    /// over `path`. Copies existing permissions when metadata is available;
+    /// new files use mode 0600 on Unix. Parent directories must already exist.
+    ///
+    /// # Errors
+    /// Returns JSON serialisation or filesystem errors. A directory-sync
+    /// failure on Unix is returned after the target has already been replaced.
+    /// Temporary-file cleanup on failure is best effort.
     fn save(&self, notebook: &Notebook, path: &Path) -> Result<(), StorageError> {
         use std::io::Write;
         let json = serde_json::to_string_pretty(notebook)?;
@@ -121,6 +131,8 @@ impl Storage for JsonStorage {
         Ok(())
     }
 
+    /// Load and repair a notebook, discarding the repair report.
+    /// Propagates the errors documented by [`JsonStorage::load_with_report`].
     fn load(&self, path: &Path) -> Result<Notebook, StorageError> {
         Ok(self.load_with_report(path)?.0)
     }
@@ -129,6 +141,11 @@ impl Storage for JsonStorage {
 impl JsonStorage {
     /// Load like [`Storage::load`], also returning what migration and repair
     /// changed (see [`Notebook::load_json`]).
+    ///
+    /// # Errors
+    /// Returns [`StorageError::NotFound`] when the path existence check fails,
+    /// [`StorageError::Io`] for read or UTF-8 errors, and [`StorageError::Load`]
+    /// for corrupt notebook data or an unsupported schema.
     pub fn load_with_report(&self, path: &Path) -> Result<(Notebook, LoadReport), StorageError> {
         if !path.exists() {
             return Err(StorageError::NotFound(path.display().to_string()));

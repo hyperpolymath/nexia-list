@@ -37,7 +37,7 @@ fn legacy_schema_version() -> u32 {
 }
 
 /// Write `notes` in id order, so saving the same notebook twice produces the
-/// same bytes (stable diffs, reproducible exports).
+/// same bytes (stable diffs, reproducible exports). Propagates serialiser errors.
 fn serialize_sorted_notes<S: serde::Serializer>(
     notes: &HashMap<NoteId, Note>,
     serializer: S,
@@ -47,6 +47,7 @@ fn serialize_sorted_notes<S: serde::Serializer>(
 }
 
 /// Write the backlink index with keys and each source list in id order.
+/// Propagates serialiser errors.
 fn serialize_sorted_backlinks<S: serde::Serializer>(
     backlinks: &HashMap<NoteId, HashSet<NoteId>>,
     serializer: S,
@@ -180,9 +181,14 @@ impl Notebook {
     }
 
     /// Load a notebook from its JSON form, migrating older schemas and
-    /// repairing recoverable damage. This is the one entry point for stored
-    /// data (file storage, IndexedDB autosave and imports all go through it):
-    /// the backlink index is always rebuilt from the notes, never trusted.
+    /// repairing recoverable damage. Returns the notebook and a report of
+    /// migration and repairs; the backlink index is rebuilt from the notes.
+    /// A missing schema version is treated as v1.
+    ///
+    /// # Errors
+    /// Returns [`LoadError::Corrupt`] for invalid JSON or notebook data,
+    /// including malformed stored backlinks, and [`LoadError::UnsupportedSchema`]
+    /// for a successfully parsed schema newer than this build supports.
     pub fn load_json(json: &str) -> Result<(Notebook, LoadReport), LoadError> {
         let mut nb: Notebook = serde_json::from_str(json)?;
         if nb.schema_version > CURRENT_SCHEMA_VERSION {
@@ -208,7 +214,9 @@ impl Notebook {
 
     /// Restore the structural invariants a hand-edited or damaged file may
     /// violate: map key == note id, ids unique, links point at existing notes,
-    /// no self-links, no duplicate links. Records every change in `report`.
+    /// no self-links, no duplicate links. Clears non-finite geometry and
+    /// records note and link repairs in `report`; rebuilding backlinks is
+    /// not reported. For duplicate ids, keeps the note with the lowest map key.
     fn repair(&mut self, report: &mut LoadReport) {
         // Re-key under each note's own id. Iterate in key order so the
         // survivor of an id collision is deterministic.
@@ -400,7 +408,9 @@ impl Notebook {
         newly_linked
     }
 
-    /// Define computed field `name` on note `id` as the λδ `formula`.
+    /// Define computed field `name` on note `id` as the λδ `formula`, without
+    /// validating or evaluating it. Updates the note and notebook timestamps.
+    /// Returns [`NotebookError::NoteNotFound`] if the note does not exist.
     pub fn set_computed(
         &mut self,
         id: &NoteId,
@@ -416,7 +426,9 @@ impl Notebook {
         Ok(())
     }
 
-    /// Remove computed field `name` from note `id`. Returns whether it existed.
+    /// Remove computed field `name` from note `id`. Returns whether it existed,
+    /// updating the note and notebook timestamps only when it did.
+    /// Returns [`NotebookError::NoteNotFound`] if the note does not exist.
     pub fn remove_computed(&mut self, id: &NoteId, name: &str) -> Result<bool, NotebookError> {
         let note = self
             .notes
@@ -467,10 +479,8 @@ impl Notebook {
 
     /// Search notes by title or content (case-insensitive substring match).
     ///
-    /// The lowercased text of every note is cached until the next change, so
-    /// repeated searches (typing a query) scan without lowercasing or
-    /// allocating — that is what keeps a 10k-note search under 10 ms on
-    /// WebAssembly. The first search after a change rebuilds the cache.
+    /// An empty query matches every note; results have no guaranteed order.
+    /// Lowercased note text is cached until the notebook revision changes.
     pub fn search(&self, query: &str) -> Vec<&Note> {
         let query_lower = query.to_lowercase();
         let mut cache = self.search_cache.borrow_mut();

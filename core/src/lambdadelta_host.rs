@@ -601,7 +601,8 @@ fn want_f64(v: &Value) -> LdResult<f64> {
 }
 
 /// A number usable as canvas geometry: finite, since NaN/Infinity cannot be
-/// stored (see `Note::position`).
+/// stored (see `Note::position`). Returns a type error for non-numeric or
+/// non-finite values; integers are converted to `f64`.
 fn want_finite_f64(v: &Value) -> LdResult<f64> {
     let x = want_f64(v)?;
     if x.is_finite() {
@@ -783,6 +784,10 @@ fn bi_remove_attr(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     Ok(note_to_value(nb, &id).unwrap_or(Value::Nil))
 }
 
+/// Move the note identified by `a[0]` to canvas coordinates `a[1..=2]` and
+/// return its updated note map. The caller must supply three arguments.
+/// Returns errors for an invalid note reference, non-numeric or non-finite
+/// coordinates, or a missing note; successful moves update timestamps.
 fn bi_move_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     let id = arg_id(&a[0])?;
     let x = want_finite_f64(&a[1])?;
@@ -797,6 +802,11 @@ fn bi_move_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     Ok(note_to_value(nb, &id).unwrap_or(Value::Nil))
 }
 
+/// Set the note identified by `a[0]` to width and height `a[1..=2]` in canvas
+/// units and return its updated note map. The caller must supply three
+/// arguments. Zero and negative dimensions are accepted. Returns errors for
+/// an invalid note reference, non-numeric or non-finite dimensions, or a
+/// missing note; successful changes update timestamps.
 fn bi_resize_note(nb: &mut Notebook, a: &[Value]) -> LdResult<Value> {
     let id = arg_id(&a[0])?;
     let w = want_finite_f64(&a[1])?;

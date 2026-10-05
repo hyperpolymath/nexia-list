@@ -77,6 +77,7 @@ pub const SIDEBAR_LIMIT: Int = 200;
 pub const GRAPH_LIMIT: Int = 500;
 pub const WASM_URL: String = "./wasm/nexia_core_bg.wasm";
 
+/// Create initial view state from the current window size and URL; the notebook is not loaded yet.
 pub fn initial_model() -> Model =
   Model #{ booted: false, rev: 0, mode: ViewMode::ListMode, selection: [], editing: "",
            viewport: initial_viewport(), screen_w: tea_viewport_width(), screen_h: tea_viewport_height(),
@@ -88,6 +89,7 @@ pub fn initial_model() -> Model =
 /// The single selected note's id, or "".
 pub fn selected_one(m: Model) -> String = if len(m.selection) == 1 { m.selection[0] } else { "" };
 
+/// Whether `nid` is in the current selection.
 pub fn is_selected(m: Model, nid: String) -> Bool {
   for s in m.selection {
     if s == nid {
@@ -97,8 +99,10 @@ pub fn is_selected(m: Model, nid: String) -> Bool {
   false
 }
 
+/// Remove every occurrence of `x`, preserving the order of the other ids.
 fn without(xs: [String], x: String) -> [String] = tea_filter(xs, fn(y) => y != x);
 
+/// Use "Untitled" when the title is empty; whitespace-only titles are retained.
 fn title_or_untitled(t: String) -> String = if t == "" { "Untitled" } else { t };
 
 // ── Messages ────────────────────────────────────────────────────────────────
@@ -247,6 +251,8 @@ pub fn update(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
   (agented, cmd)
 }
 
+/// Attempt every deletion, clear selection and editing, and schedule autosave.
+/// Retains successful deletions and surfaces the last failure message if non-empty.
 fn delete_all(m: Model, ids: [String]) -> (Model, Cmd<Msg>) {
   let mut model = m;
   let mut failed = "";
@@ -264,6 +270,9 @@ fn delete_all(m: Model, ids: [String]) -> (Model, Cmd<Msg>) {
   }
 }
 
+/// Handle one message, performing any immediate store operations and returning
+/// the updated view state and deferred commands. Store outcome errors are
+/// shown in the model; URL synchronisation and query refresh happen in `update`.
 pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
   match msg {
     Msg::Booted(b) =>
@@ -445,6 +454,8 @@ fn on_key(e: Event) -> Option<Msg> {
   }
 }
 
+/// Subscribe to URL, keyboard and resize events; track pointer movement and
+/// release only while a drag or pan gesture is active.
 pub fn subscriptions(m: Model) -> Sub<Msg> {
   let always = [on_url_change(fn(u) => Msg::UrlChanged(u)),
                 on_window("keydown", fn(e) => on_key(e)),
@@ -459,11 +470,14 @@ pub fn subscriptions(m: Model) -> Sub<Msg> {
 
 // ── View ────────────────────────────────────────────────────────────────────
 
+/// Represent a toggle state as an aria-pressed attribute.
 fn pressed(b: Bool) -> Attr<Msg> = aria("pressed", if b { "true" } else { "false" });
 
+/// Render a labelled button that dispatches `msg` when clicked.
 fn btn(cls: String, label_text: String, msg: Msg) -> Html<Msg> =
   button([attr("type", "button"), class(cls), on_click(msg)], [text(label_text)]);
 
+/// Render view, sidebar and file controls with the current unsaved indicator.
 fn toolbar(m: Model) -> Html<Msg> =
   div([class("toolbar"), attr("role", "toolbar"), aria("label", "Main toolbar")], [
     div([class("toolbar-left")], [
@@ -486,6 +500,7 @@ fn toolbar(m: Model) -> Html<Msg> =
     ]))
   ]);
 
+/// Render dismissible error and notice banners, omitting empty messages.
 fn banners(m: Model) -> [Html<Msg>] =
   tea_concat([
     if m.error == "" { [] } else {
@@ -500,6 +515,7 @@ fn banners(m: Model) -> [Html<Msg>] =
     }
   ]);
 
+/// Render a selectable note row with its title and outgoing link count.
 fn note_row(m: Model, n: Note) -> Html<Msg> {
   let sel = is_selected(m, n.id);
   let t = title_or_untitled(n.title);
@@ -512,6 +528,7 @@ fn note_row(m: Model, n: Note) -> Html<Msg> {
   ])
 }
 
+/// Render saved-query selection, removal and creation controls.
 fn agents_panel(m: Model) -> Html<Msg> =
   section([class("agents-panel"), aria("label", "Agents")], [
     node("h3", [], [text("Agents")]),
@@ -533,6 +550,8 @@ fn agents_panel(m: Model) -> Html<Msg> =
     ])
   ]);
 
+/// Render a capped note list, prioritising search over the active agent,
+/// together with search, agent and notebook controls.
 fn sidebar(m: Model) -> Html<Msg> {
   let all = nx_notes();
   let listed = if m.search != "" { tea_map(tea_filter(m.results, fn(i) => nx_has(i)), fn(i) => nx_note(i)) }
@@ -576,8 +595,10 @@ fn take_notes(xs: [Note], k: Int) -> [Note] {
   out
 }
 
+/// Return the note title, "Untitled" for an empty title, or "(unknown)" for a missing note.
 fn title_of(nid: String) -> String = if nx_has(nid) { title_or_untitled(nx_note(nid).title) } else { "(unknown)" };
 
+/// Render a computed field’s result or error, source and removal control.
 fn field_row(nid: String, f: FieldValue) -> Html<Msg> =
   li([key(f.name), class(if f.ok { "field" } else { "field field-error" })], [
     span([class("field-name")], [text(f.name)]),
@@ -609,6 +630,8 @@ fn fields_panel(m: Model, n: Note) -> Html<Msg> {
   ])
 }
 
+/// Render note editing, computed fields, outgoing links and backlinks.
+/// A non-empty link query offers up to eight matching, currently unlinked notes.
 fn note_editor(m: Model, n: Note) -> Html<Msg> {
   let candidates = if m.link_query == "" { [] } else {
     take_notes(tea_filter(nx_notes(), fn(c) => c.id != n.id && !contains_id(n.links, c.id)
@@ -647,6 +670,7 @@ fn note_editor(m: Model, n: Note) -> Html<Msg> {
   ])
 }
 
+/// Whether `xs` contains `x`.
 fn contains_id(xs: [String], x: String) -> Bool {
   for y in xs {
     if y == x {
@@ -656,6 +680,7 @@ fn contains_id(xs: [String], x: String) -> Bool {
   false
 }
 
+/// Show the editor for a single existing selected note, otherwise a creation prompt.
 fn list_view(m: Model) -> Html<Msg> {
   let one = selected_one(m);
   div([class("list-view")], [
@@ -674,7 +699,7 @@ pub const FAR_ZOOM: Float = 0.35;
 
 /// A note card on the canvas: title, a content preview and its computed
 /// fields' live values — or, while it is being edited, inline inputs. At far
-/// zoom only the title is drawn.
+/// zoom only the title is drawn unless the card is being edited.
 fn card(m: Model, n: Note) -> Html<Msg> {
   let sel = is_selected(m, n.id);
   let t = title_or_untitled(n.title);
@@ -715,13 +740,15 @@ fn card(m: Model, n: Note) -> Html<Msg> {
 /// Everything a canvas card's view reads: the note (its read-model version
 /// bumps with every edit and move), whether it is selected or edited, and —
 /// when it shows computed fields, which can depend on any note — the
-/// read-model revision. Unchanged cards are skipped while panning/zooming.
+/// read-model revision. The key also includes the near/far zoom category.
+/// Unchanged cards can reuse their rendered view within that category.
 fn card_memo(m: Model, n: Note) -> String =
   n.id ++ "|" ++ int_to_string(n.ver) ++ "|" ++ (if is_selected(m, n.id) { "s" } else { "" })
     ++ "|" ++ (if m.editing == n.id { "e" } else { "" })
     ++ "|" ++ (if n.field_count > 0 { int_to_string(m.rev) } else { "" })
     ++ "|" ++ (if m.viewport.zoom < FAR_ZOOM { "far" } else { "" });
 
+/// Render visible placed notes with pan, zoom, drag and creation controls.
 fn canvas_view(m: Model) -> Html<Msg> {
   let v = m.viewport;
   let shown = tea_filter(nx_notes(), fn(n) => visible(v, m.screen_w, m.screen_h, n));
@@ -741,6 +768,8 @@ fn canvas_view(m: Model) -> Html<Msg> {
   ])
 }
 
+/// Render a circular graph of the first GRAPH_LIMIT notes in title order,
+/// including only links whose endpoints are both shown.
 fn graph_view(m: Model) -> Html<Msg> {
   let notes = take_notes(nx_notes(), GRAPH_LIMIT);
   let w = 800.0;
@@ -777,11 +806,16 @@ fn graph_view(m: Model) -> Html<Msg> {
 
 /// Opaque id → position index over graph nodes (host string map).
 pub extern type GraphIndex;
+/// Map each key to its first zero-based position in `keys`.
 pub extern fn tea_key_index(keys: [String]) -> GraphIndex;
+/// Return the indexed position of `k`, or -1 when absent.
 pub extern fn tea_key_lookup(ix: GraphIndex, k: String) -> Int;
+/// Index each graph node id by its first zero-based position.
 fn graph_index(nodes: [GraphNode]) -> GraphIndex = tea_key_index(tea_map(nodes, fn(g) => g.id));
+/// Return a graph node’s indexed position, or -1 when absent.
 fn graph_at(ix: GraphIndex, nid: String) -> Int = tea_key_lookup(ix, nid);
 
+/// Render startup status until boot completes, then the active view and optional sidebar.
 pub fn view(m: Model) -> Html<Msg> {
   if !m.booted {
     return div([class("app")], tea_concat([banners(m), [div([class("loading"), attr("role", "status")], [text("Loading Nexia-List…")])]]));
@@ -804,6 +838,7 @@ pub fn view(m: Model) -> Html<Msg> {
 
 // ── Program ─────────────────────────────────────────────────────────────────
 
+/// Create initial view state and a command that loads WASM and restores the autosave.
 pub fn init() -> (Model, Cmd<Msg>) =
   (initial_model(), run_cmd(fn(dispatch) => nx_boot(WASM_URL, fn(b) => dispatch(Msg::Booted(b)))));
 
