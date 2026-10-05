@@ -23,7 +23,9 @@ wasm = [
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# float_roundtrip: exact f64 parsing, so canvas geometry and numeric
+# attributes reload bit-identical (the default parser can drift by an ULP).
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
@@ -37,3 +39,7 @@ serde-wasm-bindgen = { version = "0.6", optional = true }
 pretty_assertions = "1.0"
 tempfile = "3.0"
 proptest = "1"
+
+[[bench]]
+name = "notebook_perf"
+harness = false

@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
 /// Unique identifier for a note
@@ -24,12 +24,65 @@ impl Point2D {
     pub fn origin() -> Self {
         Self { x: 0.0, y: 0.0 }
     }
+
+    /// Whether both coordinates are finite (storable as JSON numbers).
+    pub fn is_finite(&self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
 }
 
 impl Default for Point2D {
     fn default() -> Self {
         Self::origin()
     }
+}
+
+/// True when `position` should not be written: absent, or not representable
+/// in JSON.
+fn point_absent_or_non_finite(position: &Option<Point2D>) -> bool {
+    position.is_none_or(|p| !p.is_finite())
+}
+
+/// True when `size` should not be written: absent, or not representable in
+/// JSON.
+fn size_absent_or_non_finite(size: &Option<(f64, f64)>) -> bool {
+    size.is_none_or(|(w, h)| !(w.is_finite() && h.is_finite()))
+}
+
+/// Read a position whose coordinates may be `null` (as written by builds that
+/// serialised NaN); a missing or `null` coordinate becomes NaN for load-time
+/// repair. A `null` position becomes `None`; invalid shapes or coordinate
+/// types propagate the deserialiser error.
+fn deserialize_lenient_point<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Point2D>, D::Error> {
+    #[derive(Deserialize)]
+    struct Lenient {
+        x: Option<f64>,
+        y: Option<f64>,
+    }
+    let raw: Option<Lenient> = Option::deserialize(deserializer)?;
+    Ok(raw.map(|p| Point2D::new(p.x.unwrap_or(f64::NAN), p.y.unwrap_or(f64::NAN))))
+}
+
+/// Read a size whose components may be `null`; see [`deserialize_lenient_point`].
+/// A `null` size becomes `None`; `null` components become NaN. Invalid shapes
+/// or component types propagate the deserialiser error.
+fn deserialize_lenient_size<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<(f64, f64)>, D::Error> {
+    let raw: Option<(Option<f64>, Option<f64>)> = Option::deserialize(deserializer)?;
+    Ok(raw.map(|(w, h)| (w.unwrap_or(f64::NAN), h.unwrap_or(f64::NAN))))
+}
+
+/// Write attributes in key order, so a saved note is byte-stable.
+/// Propagates errors from the serialiser.
+fn serialize_sorted_attributes<S: serde::Serializer>(
+    attributes: &HashMap<String, serde_json::Value>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let sorted: BTreeMap<&String, &serde_json::Value> = attributes.iter().collect();
+    sorted.serialize(serializer)
 }
 
 /// A single note in the knowledge graph
@@ -44,12 +97,24 @@ pub struct Note {
     /// Note content (plain text for MVP, rich text later)
     pub content: String,
 
-    /// Position on the spatial canvas (None if not placed)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Position on the spatial canvas (None if not placed). A non-finite
+    /// position is never written (JSON has no NaN/Infinity, and serde_json
+    /// would emit `null`, making the whole file unloadable); a `null`
+    /// coordinate in an existing file is read leniently so loading can repair
+    /// it (see [`Note::clear_non_finite_geometry`]).
+    #[serde(
+        default,
+        skip_serializing_if = "point_absent_or_non_finite",
+        deserialize_with = "deserialize_lenient_point"
+    )]
     pub position: Option<Point2D>,
 
-    /// Size on canvas (width, height)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Size on canvas (width, height); same non-finite handling as `position`.
+    #[serde(
+        default,
+        skip_serializing_if = "size_absent_or_non_finite",
+        deserialize_with = "deserialize_lenient_size"
+    )]
     pub size: Option<(f64, f64)>,
 
     /// When the note was created
@@ -67,8 +132,19 @@ pub struct Note {
     pub prototype: Option<NoteId>,
 
     /// Custom attributes
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "HashMap::is_empty",
+        serialize_with = "serialize_sorted_attributes"
+    )]
     pub attributes: HashMap<String, serde_json::Value>,
+
+    /// Computed fields: field name → λδ formula source. The *source* is
+    /// persisted; values are derived on demand (see
+    /// [`crate::lambdadelta_host::eval_computed_fields`]) and never stored, so
+    /// a reload can never show a stale value. Ordered for stable output.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub computed: BTreeMap<String, String>,
 }
 
 impl Note {
@@ -86,6 +162,7 @@ impl Note {
             links: Vec::new(),
             prototype: None,
             attributes: HashMap::new(),
+            computed: BTreeMap::new(),
         }
     }
 
@@ -133,6 +210,42 @@ impl Note {
     /// Get an attribute value
     pub fn get_attribute(&self, key: &str) -> Option<&serde_json::Value> {
         self.attributes.get(key)
+    }
+
+    /// Drop a non-finite position or size (the note becomes unplaced /
+    /// default-sized). Returns whether anything was cleared.
+    pub fn clear_non_finite_geometry(&mut self) -> bool {
+        let mut cleared = false;
+        if self.position.is_some_and(|p| !p.is_finite()) {
+            self.position = None;
+            cleared = true;
+        }
+        if self
+            .size
+            .is_some_and(|(w, h)| !(w.is_finite() && h.is_finite()))
+        {
+            self.size = None;
+            cleared = true;
+        }
+        cleared
+    }
+
+    /// Define (or redefine) the computed field `name` as the λδ `formula`.
+    /// Stores the source without validation or evaluation and updates the
+    /// modified timestamp.
+    pub fn set_computed(&mut self, name: impl Into<String>, formula: impl Into<String>) {
+        self.computed.insert(name.into(), formula.into());
+        self.touch();
+    }
+
+    /// Remove the computed field `name`. Returns whether it existed, updating
+    /// the modified timestamp only when a field was removed.
+    pub fn remove_computed(&mut self, name: &str) -> bool {
+        let existed = self.computed.remove(name).is_some();
+        if existed {
+            self.touch();
+        }
+        existed
     }
 }
 

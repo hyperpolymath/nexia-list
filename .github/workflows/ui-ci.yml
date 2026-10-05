@@ -1,12 +1,13 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # Product CI (UI/wasm): compile-verify changed AffineScript sources, build the
-# Rust wasm core, and run the live UI/contract test suites.
+# Rust wasm core and the AffineScript UI, and run the unit, contract and
+# browser end-to-end suites.
 #
-# The UI was ported from ReScript to AffineScript (PR #76). The AffineScript
-# compiler verifies .affine files (`affinescript check`) but ships no web UI
-# emitter yet, so there is deliberately no UI bundling here — see
-# docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc.
+# The UI (ui/src/*.affine) is AffineScript on the affinescript-tea runtime,
+# compiled with the compiler's Bun-ESM backend at the commit pinned in
+# scripts/fetch-affinescript.sh (the one place the pin lives) — see
+# docs/decisions/ui-affinescript-tea-2026-10-05.adoc.
 name: ui-ci
 
 on:
@@ -32,7 +33,6 @@ concurrency:
 env:
   LEGACY_BLOCKING: "false"
   COMPILER_REPO: hyperpolymath/affinescript
-  COMPILER_REF: d2875a552f1d389b4a60c4adfdc02ae53e36aca3
 
 jobs:
   affinescript-verify:
@@ -73,13 +73,24 @@ jobs:
             { echo 'added<<EOF'; echo "$ADDED"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: "Read the compiler pin (single source: scripts/fetch-affinescript.sh)"
+        id: pin
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          ref="$(sed -n 's/^AFFINESCRIPT_REF="\([0-9a-f]\{40\}\)"$/\1/p' scripts/fetch-affinescript.sh)"
+          if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::AFFINESCRIPT_REF in scripts/fetch-affinescript.sh is not a 40-hex SHA"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       - name: Checkout AffineScript compiler
         if: steps.changed.outputs.any == 'true'
         continue-on-error: true
         uses: actions/checkout@v7.0.1
         with:
           repository: ${{ env.COMPILER_REPO }}
-          ref: ${{ env.COMPILER_REF }}
+          ref: ${{ steps.pin.outputs.ref }}
           path: .affinescript-compiler
 
       - name: Set up OCaml
@@ -127,7 +138,13 @@ jobs:
             [ -z "$f" ] && continue
             abs="$GITHUB_WORKSPACE/$f"
             echo "::group::check $f"
-            if opam exec -- dune exec affinescript -- check "$abs" 2>&1; then
+            # Check from the file's own directory so sibling modules
+            # (`use Store::...`) resolve; the TEA runtime and stdlib come
+            # from the pinned compiler checkout.
+            if (cd "$(dirname "$abs")" && \
+                AFFINESCRIPT_STDLIB="$GITHUB_WORKSPACE/.affinescript-compiler/stdlib" \
+                AFFINESCRIPT_PATH="$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-tea/src:$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-router/src" \
+                "$GITHUB_WORKSPACE/.affinescript-compiler/_build/default/bin/main.exe" check "$(basename "$abs")") 2>&1; then
               echo "✅ $f"
             elif is_added "$f"; then
               echo "::error file=$f::AffineScript check failed (ADDED file — blocking)"
@@ -187,8 +204,26 @@ jobs:
       - name: Build wasm core
         run: bun run build:wasm
 
-      - name: UI + contract tests
+      - name: Set up OCaml (AffineScript compiler)
+        uses: ocaml/setup-ocaml@93303b622b2522e4411e295f9e77411a24912ac7 # v3
+        with:
+          ocaml-compiler: "5.1"
+
+      - name: Fetch and build the pinned AffineScript compiler
+        run: opam exec -- bash scripts/fetch-affinescript.sh
+
+      - name: Build the AffineScript UI (web/dist)
+        run: bun run build:ui
+
+      - name: UI unit + contract tests
         run: bun run test:ui
+
+      - name: Browser end-to-end tests (headless Chromium)
+        working-directory: tests/e2e
+        run: |
+          bun install --frozen-lockfile --ignore-scripts
+          bun run browsers
+          bun test --timeout 120000 app.test.js
 
       - name: Lint
         run: bun run lint

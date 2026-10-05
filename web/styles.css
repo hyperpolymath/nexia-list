@@ -337,6 +337,9 @@ body {
   width: 100%;
   height: 100%;
   transform-origin: 0 0;
+  /* Pan/zoom only change this transform: keep the layer on the compositor
+     so moving it does not repaint every card. */
+  will-change: transform;
 }
 
 .canvas-note {
@@ -349,6 +352,8 @@ body {
   padding: 1rem;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  /* Cards are independent boxes: isolate their layout and paint. */
+  contain: layout paint style;
 }
 
 .canvas-note:hover {
@@ -659,4 +664,127 @@ body {
 
 .note-backlinks ul {
   list-style: none;
+}
+
+/* ── Additions for the AffineScript UI (ui/src/App.affine) ─────────────── */
+
+.notice-banner {
+  padding: 0.75rem 1rem;
+  background: rgba(15, 52, 96, 0.6);
+  border-bottom: 1px solid var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notice-banner button {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.loading {
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.list-more {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* Computed fields (λδ): editor list, add form, and canvas card values. */
+.field-list,
+.canvas-note-fields {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+}
+
+.field-list .field {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "name value remove" "source source source";
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-name {
+  grid-area: name;
+  font-weight: 600;
+}
+
+.field-value {
+  grid-area: value;
+  font-family: ui-monospace, monospace;
+}
+
+.field-source {
+  grid-area: source;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.field-list .btn-remove {
+  grid-area: remove;
+}
+
+.field-error .field-value,
+.formula-error {
+  color: var(--accent-hover);
+}
+
+.field-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.canvas-note-fields {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.canvas-note-fields .field-value {
+  color: var(--text-primary);
+}
+
+/* Inline editing of a canvas card. */
+.card-title-input,
+.card-content-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+}
+
+.card-content-input {
+  margin-top: 0.4rem;
+  min-height: 4rem;
+  resize: vertical;
+}
+
+.canvas-zoom {
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+/* Far zoom (level of detail): cards render title-only and lose the costly
+   shadow and padding; text is too small to read there anyway. */
+.canvas.far .canvas-note {
+  box-shadow: none;
+  padding: 0.5rem;
+  min-height: 0;
 }

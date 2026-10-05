@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: MPL-2.0
+//
+// Geometry.affine — pure geometry for the spatial canvas and graph view:
+// keyboard navigation to the nearest note in a direction, nudging, viewport
+// culling, and a deterministic circular graph layout. Side-effect free.
+
+module Geometry;
+
+use prelude::*;
+use math::{to_float};
+use Store::{Note};
+
+pub enum Direction { Up, Down, Left, Right }
+
+/// Pan offset (CSS px) and zoom factor of the canvas.
+pub struct Viewport { ox: Float, oy: Float, zoom: Float }
+
+/// Start at the canvas origin with unit zoom.
+pub fn initial_viewport() -> Viewport = Viewport #{ ox: 0.0, oy: 0.0, zoom: 1.0 };
+
+pub const MIN_ZOOM: Float = 0.1;
+pub const MAX_ZOOM: Float = 5.0;
+
+/// The step, in canvas units, that an Alt+arrow nudge moves a note.
+pub const NUDGE: Float = 20.0;
+
+/// Default note card size in canvas units (used for culling unsized notes).
+pub const CARD_W: Float = 200.0;
+pub const CARD_H: Float = 120.0;
+
+/// Return the magnitude of `x`.
+fn abs_f(x: Float) -> Float = if x < 0.0 { 0.0 - x } else { x };
+
+/// Score of `target` as the next note from `(ox, oy)` in `dir`: along-axis
+/// distance plus twice the lateral drift, or a negative number when the
+/// target is not in that half-plane.
+pub fn score(ox: Float, oy: Float, tx: Float, ty: Float, dir: Direction) -> Float {
+  let dx = tx - ox;
+  let dy = ty - oy;
+  let (along, lateral) = match dir {
+    Direction::Up => (0.0 - dy, dx),
+    Direction::Down => (dy, dx),
+    Direction::Left => (0.0 - dx, dy),
+    Direction::Right => (dx, dy)
+  };
+  if along <= 0.0 { 0.0 - 1.0 } else { along + abs_f(lateral) * 2.0 }
+}
+
+/// Return the placed note with the lowest directional `score`, keeping the
+/// first on a tie. Returns "" if `from` is unplaced or no candidate qualifies.
+pub fn nearest(notes: [Note], from: Note, dir: Direction) -> String {
+  if !from.placed {
+    return "";
+  }
+  let mut best = "";
+  let mut best_score = 0.0;
+  for n in notes {
+    if n.placed && n.id != from.id {
+      let s = score(from.x, from.y, n.x, n.y, dir);
+      if s >= 0.0 && (best == "" || s < best_score) {
+        best = n.id;
+        best_score = s;
+      }
+    }
+  }
+  best
+}
+
+/// `(x, y)` moved one nudge step in `dir`.
+pub fn nudge(x: Float, y: Float, dir: Direction) -> (Float, Float) {
+  match dir {
+    Direction::Up => (x, y - NUDGE),
+    Direction::Down => (x, y + NUDGE),
+    Direction::Left => (x - NUDGE, y),
+    Direction::Right => (x + NUDGE, y)
+  }
+}
+
+/// Zoom by `factor`, clamped to [MIN_ZOOM, MAX_ZOOM].
+pub fn zoom_by(v: Viewport, factor: Float) -> Viewport {
+  let z = v.zoom * factor;
+  let clamped = if z < MIN_ZOOM { MIN_ZOOM } else { if z > MAX_ZOOM { MAX_ZOOM } else { z } };
+  Viewport #{ ox: v.ox, oy: v.oy, zoom: clamped }
+}
+
+/// Add screen-space offsets in CSS pixels, preserving zoom.
+pub fn pan_by(v: Viewport, dx: Float, dy: Float) -> Viewport =
+  Viewport #{ ox: v.ox + dx, oy: v.oy + dy, zoom: v.zoom };
+
+/// Canvas coordinates of a point given in screen pixels relative to the
+/// canvas element's origin.
+pub fn to_canvas(v: Viewport, sx: Float, sy: Float) -> (Float, Float) =
+  ((sx - v.ox) / v.zoom, (sy - v.oy) / v.zoom);
+
+/// Whether note `n` intersects the visible area of a `w`×`h` screen with
+/// viewport `v`, including a 64 CSS-pixel margin and touching edges.
+/// Unplaced notes are excluded; non-positive dimensions use the card defaults.
+pub fn visible(v: Viewport, w: Float, h: Float, n: Note) -> Bool {
+  if !n.placed {
+    return false;
+  }
+  let margin = 64.0;
+  let nw = if n.w > 0.0 { n.w } else { CARD_W };
+  let nh = if n.h > 0.0 { n.h } else { CARD_H };
+  let left = n.x * v.zoom + v.ox;
+  let top = n.y * v.zoom + v.oy;
+  left + nw * v.zoom >= 0.0 - margin && left <= w + margin
+    && top + nh * v.zoom >= 0.0 - margin && top <= h + margin
+}
+
+/// A node of the graph view.
+pub struct GraphNode { id: String, title: String, x: Float, y: Float }
+
+/// Place `notes` evenly on a circle inscribed in `width`×`height`, starting
+/// at the top and going clockwise in input order. Finite, non-negative box
+/// dimensions produce coordinates within the box; an empty input returns [].
+pub fn circular(notes: [Note], width: Float, height: Float) -> [GraphNode] {
+  let count = len(notes);
+  if count == 0 {
+    return [];
+  }
+  let cx = width / 2.0;
+  let cy = height / 2.0;
+  let radius = (if width < height { width } else { height }) * 0.38;
+  let pi = 3.141592653589793;
+  let mut out = [];
+  let mut i = 0;
+  while i < count {
+    let n = notes[i];
+    let angle = 0.0 - pi / 2.0 + 2.0 * pi * to_float(i) / to_float(count);
+    out = out ++ [GraphNode #{ id: n.id, title: if n.title == "" { "Untitled" } else { n.title },
+                               x: cx + radius * cos(angle), y: cy + radius * sin(angle) }];
+    i = i + 1;
+  }
+  out
+}

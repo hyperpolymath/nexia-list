@@ -1,0 +1,846 @@
+// SPDX-License-Identifier: MPL-2.0
+//
+// App.affine — the Nexia-List application: model, messages, update, view and
+// subscriptions on the affinescript-tea runtime. All notebook data lives in
+// the Rust/WASM core (see Store.affine); the model holds only view state plus
+// the core's read-model revision, which changes whenever the notebook does.
+
+module App;
+
+use prelude::*;
+use Tea::{Html, Attr, Cmd, Sub, Event, run, text, node, svg_node, div, span, button, input, textarea,
+          label, ul, li, h2, p, section, header, main_, nav, aside, details, summary, output,
+          attr, prop, style, key, class, id, value, aria, data, lazy, on, on_click, on_input, on_enter,
+          none, batch, run_cmd, no_sub, subs, on_window, tea_map, tea_filter, tea_concat,
+          ev_client_x, ev_client_y, ev_local_x, ev_local_y, ev_delta_y, ev_key, ev_ctrl, ev_meta,
+          ev_shift, ev_target_editable, ev_prevent, ev_stop, tea_viewport_width,
+          tea_viewport_height};
+use Store::{Note, FieldValue, Agent, Outcome, Boot, SearchPage, nx_boot, nx_autosave, nx_save_file, nx_open_file,
+            nx_export_markdown, nx_export_opml, nx_import_vault, nx_reset, nx_rev, nx_name, nx_count,
+            nx_notes, nx_has, nx_note, nx_backlinks, nx_search, nx_agents, nx_run_agent, nx_fields,
+            nx_preview, nx_create, nx_set_title, nx_set_content, nx_move, nx_delete, nx_link,
+            nx_unlink, nx_set_field, nx_remove_field, nx_add_agent, nx_remove_agent, nx_contains_ci,
+            nx_prefix, nx_char_count, nx_trim, nx_num};
+use Router::{Url, current_url, on_url_change, navigate, replace, match_route, href};
+use Geometry::{Direction, Viewport, GraphNode, Up, Down, Left, Right, initial_viewport, nearest,
+               nudge, zoom_by, pan_by, to_canvas, visible, circular};
+
+// ── Model ───────────────────────────────────────────────────────────────────
+
+pub enum ViewMode { ListMode, CanvasMode, GraphMode }
+
+/// A pointer gesture in progress on the canvas.
+pub enum Gesture {
+  Idle,
+  /// Dragging note `id`: pointer start (screen px) and the note's start position.
+  Dragging(String, Float, Float, Float, Float),
+  /// Panning: the last pointer position (screen px).
+  Panning(Float, Float)
+}
+
+pub struct Model {
+  booted: Bool,
+  rev: Int,
+  mode: ViewMode,
+  selection: [String],
+  editing: String,
+  viewport: Viewport,
+  screen_w: Float,
+  screen_h: Float,
+  search: String,
+  results: [String],
+  /// Total number of search matches (`results` holds the first page).
+  results_total: Int,
+  /// Read-model revision `results`/`agent_results` were computed at.
+  results_rev: Int,
+  agent_rev: Int,
+  sidebar: Bool,
+  dirty: Bool,
+  error: String,
+  notice: String,
+  agents: [Agent],
+  active_agent: String,
+  agent_results: [String],
+  agent_name: String,
+  agent_query: String,
+  link_query: String,
+  field_name: String,
+  field_source: String,
+  gesture: Gesture,
+  /// The URL seen at startup, applied once the notebook has loaded.
+  boot_url: Url
+}
+
+/// How many notes the sidebar lists before asking the user to search.
+pub const SIDEBAR_LIMIT: Int = 200;
+/// The graph view draws at most this many notes.
+pub const GRAPH_LIMIT: Int = 500;
+pub const WASM_URL: String = "./wasm/nexia_core_bg.wasm";
+
+/// Create initial view state from the current window size and URL; the notebook is not loaded yet.
+pub fn initial_model() -> Model =
+  Model #{ booted: false, rev: 0, mode: ViewMode::ListMode, selection: [], editing: "",
+           viewport: initial_viewport(), screen_w: tea_viewport_width(), screen_h: tea_viewport_height(),
+           search: "", results: [], results_total: 0, results_rev: 0 - 1, agent_rev: 0 - 1, sidebar: true, dirty: false, error: "", notice: "",
+           agents: [], active_agent: "", agent_results: [], agent_name: "", agent_query: "",
+           link_query: "", field_name: "", field_source: "(count (words (content self)))",
+           gesture: Gesture::Idle, boot_url: current_url() };
+
+/// The single selected note's id, or "".
+pub fn selected_one(m: Model) -> String = if len(m.selection) == 1 { m.selection[0] } else { "" };
+
+/// Whether `nid` is in the current selection.
+pub fn is_selected(m: Model, nid: String) -> Bool {
+  for s in m.selection {
+    if s == nid {
+      return true;
+    }
+  }
+  false
+}
+
+/// Remove every occurrence of `x`, preserving the order of the other ids.
+fn without(xs: [String], x: String) -> [String] = tea_filter(xs, fn(y) => y != x);
+
+/// Use "Untitled" when the title is empty; whitespace-only titles are retained.
+fn title_or_untitled(t: String) -> String = if t == "" { "Untitled" } else { t };
+
+// ── Messages ────────────────────────────────────────────────────────────────
+
+pub enum Msg {
+  Booted(Boot),
+  CreateNote,
+  CreateNoteAt(Float, Float),
+  DeleteNote(String),
+  DeleteSelected,
+  SetTitle(String, String),
+  SetContent(String, String),
+  StartEditing(String),
+  StopEditing,
+  Select(String),
+  AddToSelection(String),
+  ClearSelection,
+  SelectAll,
+  SetMode(ViewMode),
+  ToggleSidebar,
+  ZoomBy(Float),
+  ResetViewport,
+  Navigate(Direction),
+  Nudge(Direction),
+  SetSearch(String),
+  ClearSearch,
+  NewNotebook,
+  SaveNotebook,
+  OpenNotebook,
+  Opened(Outcome),
+  ExportMarkdown,
+  ExportOpml,
+  ImportVault,
+  SetAgentName(String),
+  SetAgentQuery(String),
+  CreateAgent,
+  DeleteAgent(String),
+  RunAgent(String),
+  ClearAgent,
+  SetLinkQuery(String),
+  Link(String, String),
+  Unlink(String, String),
+  SetFieldName(String),
+  SetFieldSource(String),
+  AddField(String),
+  RemoveField(String, String),
+  BeginDrag(String, Float, Float, Bool),
+  BeginPan(Float, Float),
+  PointerMove(Float, Float),
+  PointerUp,
+  Resized(Float, Float),
+  DismissError,
+  DismissNotice,
+  UrlChanged(Url),
+  NoOp
+}
+
+// ── Update ──────────────────────────────────────────────────────────────────
+
+/// Persist the notebook (debounced in the host) after a change.
+fn autosave() -> Cmd<Msg> = run_cmd(fn(dispatch) => nx_autosave());
+
+/// Apply a core mutation's outcome: on success pick up the new revision and
+/// schedule an autosave; on failure surface the core's error.
+fn applied(m: Model, o: Outcome) -> (Model, Cmd<Msg>) =
+  if o.ok { (Model #{ ..m, rev: nx_rev(), dirty: true }, autosave()) }
+  else { (Model #{ ..m, error: o.error }, none()) };
+
+/// Like [applied], also selecting `o.id` and starting to edit it (new notes).
+fn created(m: Model, o: Outcome) -> (Model, Cmd<Msg>) =
+  if o.ok {
+    (Model #{ ..m, rev: nx_rev(), dirty: true, selection: [o.id], editing: o.id }, autosave())
+  } else { (Model #{ ..m, error: o.error }, none()) };
+
+/// View state reset after the whole notebook is replaced.
+fn reloaded(m: Model) -> Model =
+  Model #{ ..m, rev: nx_rev(), dirty: false, selection: [], editing: "", search: "", results: [], results_total: 0,
+           agents: nx_agents(), active_agent: "", agent_results: [], link_query: "", error: "" };
+
+/// `m` searching for `q`: the first sidebar page of matches and the total.
+fn with_search(m: Model, q: String) -> Model {
+  if q == "" {
+    return Model #{ ..m, search: q, results: [], results_total: 0, results_rev: m.rev };
+  }
+  let page = nx_search(q, SIDEBAR_LIMIT);
+  Model #{ ..m, search: q, results: page.ids, results_total: page.total, results_rev: m.rev }
+}
+
+// ── Routing (deep links) ────────────────────────────────────────────────────
+//   #/            list view          #/note/<id>   list view, note open
+//   #/canvas      canvas view        #/graph       graph view
+
+/// The route that describes `m`'s view.
+pub fn route_of(m: Model) -> String {
+  let one = selected_one(m);
+  match m.mode {
+    ViewMode::CanvasMode => "/canvas",
+    ViewMode::GraphMode => "/graph",
+    ViewMode::ListMode => if one != "" { href(["note", one]) } else { "/" }
+  }
+}
+
+/// `m` showing what `u` denotes (unknown notes and paths fall back to the
+/// list view).
+pub fn apply_url(m: Model, u: Url) -> Model {
+  if u.path == "/canvas" { return Model #{ ..m, mode: ViewMode::CanvasMode, editing: "" }; }
+  if u.path == "/graph" { return Model #{ ..m, mode: ViewMode::GraphMode, editing: "" }; }
+  match match_route("/note/:id", u.path) {
+    Some(caps) =>
+      if nx_has(caps[0]) { Model #{ ..m, mode: ViewMode::ListMode, selection: [caps[0]], editing: "" } }
+      else { Model #{ ..m, mode: ViewMode::ListMode } },
+    None => Model #{ ..m, mode: ViewMode::ListMode }
+  }
+}
+
+/// Keep the URL in step with the view: a view change adds a history entry
+/// (Back returns to the previous view); a selection change replaces it.
+fn sync_url(prev: Model, next: Model) -> Cmd<Msg> {
+  if !next.booted || !prev.booted {
+    return none();
+  }
+  let r = route_of(next);
+  if r == route_of(prev) {
+    none()
+  } else {
+    if next.mode != prev.mode { navigate(r, fn(u) => Msg::UrlChanged(u)) }
+    else { replace(r, fn(u) => Msg::UrlChanged(u)) }
+  }
+}
+
+/// Every transition goes through here: run the step, keep the URL in step,
+/// then keep derived lists (search results, the active agent's collection)
+/// live against the core — recomputed only when the notebook changed since
+/// they were computed, so pan/zoom frames never re-run a query.
+pub fn update(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
+  let (stepped, step_cmd) = step(msg, m);
+  let next = stepped;
+  // A change that came from the URL must not write the URL back (pushing
+  // there would truncate the forward history Back/Forward walk through).
+  let url_cmd = match msg { Msg::UrlChanged(_) => none(), _ => sync_url(m, stepped) };
+  let cmd = batch([step_cmd, url_cmd]);
+  let searched = if next.search == "" || next.results_rev == next.rev { next }
+                 else { with_search(next, next.search) };
+  let agented = if searched.active_agent == "" || searched.agent_rev == searched.rev { searched }
+                else { Model #{ ..searched, agent_results: nx_run_agent(searched.active_agent), agent_rev: searched.rev } };
+  (agented, cmd)
+}
+
+/// Attempt every deletion, clear selection and editing, and schedule autosave.
+/// Retains successful deletions and surfaces the last failure message if non-empty.
+fn delete_all(m: Model, ids: [String]) -> (Model, Cmd<Msg>) {
+  let mut model = m;
+  let mut failed = "";
+  for nid in ids {
+    let o = nx_delete(nid);
+    if !o.ok {
+      failed = o.error;
+    }
+  }
+  model = Model #{ ..model, rev: nx_rev(), dirty: true, selection: [], editing: "" };
+  if failed != "" {
+    (Model #{ ..model, error: failed }, autosave())
+  } else {
+    (model, autosave())
+  }
+}
+
+/// Handle one message, performing any immediate store operations and returning
+/// the updated view state and deferred commands. Store outcome errors are
+/// shown in the model; URL synchronisation and query refresh happen in `update`.
+pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
+  match msg {
+    Msg::Booted(b) =>
+      if b.ok {
+        let booted = Model #{ ..m, booted: true, rev: nx_rev(), agents: nx_agents(), notice: b.notice };
+        (apply_url(booted, m.boot_url), none())
+      } else {
+        (Model #{ ..m, error: "Nexia-List failed to start: " ++ b.error }, none())
+      },
+
+    Msg::CreateNote => created(m, nx_create("New Note", m.mode == ViewMode::CanvasMode, 40.0, 40.0)),
+    Msg::CreateNoteAt(sx, sy) => {
+      let (cx, cy) = to_canvas(m.viewport, sx, sy);
+      created(m, nx_create("New Note", true, cx, cy))
+    },
+    Msg::DeleteNote(nid) => {
+      let (m2, c) = applied(m, nx_delete(nid));
+      (Model #{ ..m2, selection: without(m2.selection, nid),
+                editing: if m2.editing == nid { "" } else { m2.editing } }, c)
+    },
+    Msg::DeleteSelected =>
+      if m.editing != "" || len(m.selection) == 0 { (m, none()) } else { delete_all(m, m.selection) },
+
+    Msg::SetTitle(nid, t) => applied(m, nx_set_title(nid, t)),
+    Msg::SetContent(nid, c) => applied(m, nx_set_content(nid, c)),
+    Msg::StartEditing(nid) => (Model #{ ..m, editing: nid, selection: [nid] }, none()),
+    Msg::StopEditing => (Model #{ ..m, editing: "" }, none()),
+
+    Msg::Select(nid) =>
+      (Model #{ ..m, selection: [nid], link_query: "", editing: if m.editing == nid { nid } else { "" } }, none()),
+    Msg::AddToSelection(nid) =>
+      if is_selected(m, nid) { (m, none()) } else { (Model #{ ..m, selection: m.selection ++ [nid] }, none()) },
+    Msg::ClearSelection => (Model #{ ..m, selection: [] }, none()),
+    Msg::SelectAll => (Model #{ ..m, selection: tea_map(nx_notes(), fn(n) => n.id) }, none()),
+
+    // Switching views ends inline (canvas) editing.
+    Msg::SetMode(mode) => (Model #{ ..m, mode: mode, gesture: Gesture::Idle, editing: "" }, none()),
+    Msg::ToggleSidebar => (Model #{ ..m, sidebar: !m.sidebar }, none()),
+    Msg::ZoomBy(f) => (Model #{ ..m, viewport: zoom_by(m.viewport, f) }, none()),
+    Msg::ResetViewport => (Model #{ ..m, viewport: initial_viewport() }, none()),
+
+    Msg::Navigate(dir) => {
+      let one = selected_one(m);
+      if one != "" && nx_has(one) {
+        let next = nearest(nx_notes(), nx_note(one), dir);
+        if next == "" { (m, none()) } else { (Model #{ ..m, selection: [next] }, none()) }
+      } else {
+        let placed = tea_filter(nx_notes(), fn(n) => n.placed);
+        if len(placed) == 0 { (m, none()) } else { (Model #{ ..m, selection: [placed[0].id] }, none()) }
+      }
+    },
+    Msg::Nudge(dir) => {
+      let one = selected_one(m);
+      if one == "" || !nx_has(one) {
+        (m, none())
+      } else {
+        let n = nx_note(one);
+        let (x, y) = nudge(n.x, n.y, dir);
+        applied(m, nx_move(one, x, y))
+      }
+    },
+
+    Msg::SetSearch(q) => (with_search(m, q), none()),
+    Msg::ClearSearch => (Model #{ ..m, search: "", results: [], results_total: 0 }, none()),
+
+    Msg::NewNotebook => {
+      let o = nx_reset("Untitled Notebook");
+      if o.ok { (reloaded(m), autosave()) } else { (Model #{ ..m, error: o.error }, none()) }
+    },
+    Msg::SaveNotebook => {
+      let o = nx_save_file();
+      if o.ok { (Model #{ ..m, dirty: false }, none()) } else { (Model #{ ..m, error: o.error }, none()) }
+    },
+    Msg::OpenNotebook => (m, run_cmd(fn(dispatch) => nx_open_file(fn(o) => dispatch(Msg::Opened(o))))),
+    Msg::Opened(o) =>
+      if o.ok { let r = reloaded(m); (Model #{ ..r, notice: o.notice }, autosave()) }
+      else { if o.error == "" { (m, none()) } else { (Model #{ ..m, error: o.error }, none()) } },
+    Msg::ExportMarkdown => {
+      let o = nx_export_markdown();
+      if o.ok { (m, none()) } else { (Model #{ ..m, error: o.error }, none()) }
+    },
+    Msg::ExportOpml => {
+      let o = nx_export_opml();
+      if o.ok { (m, none()) } else { (Model #{ ..m, error: o.error }, none()) }
+    },
+    Msg::ImportVault => (m, run_cmd(fn(dispatch) => nx_import_vault(fn(o) => dispatch(Msg::Opened(o))))),
+
+    Msg::SetAgentName(s) => (Model #{ ..m, agent_name: s }, none()),
+    Msg::SetAgentQuery(s) => (Model #{ ..m, agent_query: s }, none()),
+    Msg::CreateAgent => {
+      let n = nx_trim(m.agent_name);
+      let q = nx_trim(m.agent_query);
+      if n == "" || q == "" {
+        (m, none())
+      } else {
+        let o = nx_add_agent(n, q);
+        if o.ok {
+          (Model #{ ..m, agents: nx_agents(), agent_name: "", agent_query: "", dirty: true, rev: nx_rev() }, autosave())
+        } else {
+          (Model #{ ..m, error: o.error }, none())
+        }
+      }
+    },
+    Msg::DeleteAgent(aid) => {
+      let o = nx_remove_agent(aid);
+      let cleared = if m.active_agent == aid { Model #{ ..m, active_agent: "", agent_results: [] } } else { m };
+      if o.ok { (Model #{ ..cleared, agents: nx_agents(), dirty: true, rev: nx_rev() }, autosave()) }
+      else { (Model #{ ..m, error: o.error }, none()) }
+    },
+    Msg::RunAgent(aid) => (Model #{ ..m, active_agent: aid, agent_results: nx_run_agent(aid), agent_rev: m.rev }, none()),
+    Msg::ClearAgent => (Model #{ ..m, active_agent: "", agent_results: [] }, none()),
+
+    Msg::SetLinkQuery(q) => (Model #{ ..m, link_query: q }, none()),
+    Msg::Link(a, b) =>
+      if a == b { (m, none()) } else {
+        let (m2, c) = applied(m, nx_link(a, b));
+        (Model #{ ..m2, link_query: "" }, c)
+      },
+    Msg::Unlink(a, b) => applied(m, nx_unlink(a, b)),
+
+    Msg::SetFieldName(s) => (Model #{ ..m, field_name: s }, none()),
+    Msg::SetFieldSource(s) => (Model #{ ..m, field_source: s }, none()),
+    Msg::AddField(nid) => {
+      let n = nx_trim(m.field_name);
+      if n == "" || nx_trim(m.field_source) == "" {
+        (Model #{ ..m, error: "A computed field needs a name and a formula." }, none())
+      } else {
+        let (m2, c) = applied(m, nx_set_field(nid, n, m.field_source));
+        (Model #{ ..m2, field_name: "" }, c)
+      }
+    },
+    Msg::RemoveField(nid, name) => applied(m, nx_remove_field(nid, name)),
+
+    Msg::BeginDrag(nid, sx, sy, shift) =>
+      if shift {
+        (Model #{ ..m, selection: if is_selected(m, nid) { m.selection } else { m.selection ++ [nid] } }, none())
+      } else {
+        let n = nx_note(nid);
+        (Model #{ ..m, selection: [nid], gesture: Gesture::Dragging(nid, sx, sy, n.x, n.y) }, none())
+      },
+    Msg::BeginPan(sx, sy) => (Model #{ ..m, gesture: Gesture::Panning(sx, sy) }, none()),
+    Msg::PointerMove(sx, sy) =>
+      match m.gesture {
+        Gesture::Dragging(nid, x0, y0, nx0, ny0) =>
+          applied(m, nx_move(nid, nx0 + (sx - x0) / m.viewport.zoom, ny0 + (sy - y0) / m.viewport.zoom)),
+        Gesture::Panning(lx, ly) =>
+          (Model #{ ..m, viewport: pan_by(m.viewport, sx - lx, sy - ly), gesture: Gesture::Panning(sx, sy) }, none()),
+        Gesture::Idle => (m, none())
+      },
+    Msg::PointerUp => (Model #{ ..m, gesture: Gesture::Idle }, none()),
+    Msg::Resized(w, h) => (Model #{ ..m, screen_w: w, screen_h: h }, none()),
+
+    Msg::DismissError => (Model #{ ..m, error: "" }, none()),
+    Msg::DismissNotice => (Model #{ ..m, notice: "" }, none()),
+    // A URL change (back/forward, a deep link, or our own navigate/replace)
+    // sets the view it denotes; when it already matches, nothing changes.
+    Msg::UrlChanged(u) => (apply_url(m, u), none()),
+    Msg::NoOp => (m, none())
+  }
+}
+
+// ── Subscriptions ───────────────────────────────────────────────────────────
+
+/// Global keyboard shortcuts. Arrows and Delete are ignored while typing so
+/// text fields keep their caret movement and deletion.
+fn on_key(e: Event) -> Option<Msg> {
+  let k = ev_key(e);
+  let modk = ev_ctrl(e) || ev_meta(e);
+  let typing = ev_target_editable(e);
+  if modk && k == "n" { ev_prevent(e); return Some(Msg::CreateNote); }
+  if modk && k == "s" { ev_prevent(e); return Some(Msg::SaveNotebook); }
+  if k == "Escape" { return Some(Msg::StopEditing); }
+  if typing || modk { return None; }
+  let dir = if k == "ArrowUp" { Some(Up) } else { if k == "ArrowDown" { Some(Down) }
+            else { if k == "ArrowLeft" { Some(Left) } else { if k == "ArrowRight" { Some(Right) } else { None } } } };
+  match dir {
+    Some(d) => { ev_prevent(e); if ev_shift(e) { Some(Msg::Nudge(d)) } else { Some(Msg::Navigate(d)) } },
+    None => if k == "Delete" || k == "Backspace" { Some(Msg::DeleteSelected) } else { None }
+  }
+}
+
+/// Subscribe to URL, keyboard and resize events; track pointer movement and
+/// release only while a drag or pan gesture is active.
+pub fn subscriptions(m: Model) -> Sub<Msg> {
+  let always = [on_url_change(fn(u) => Msg::UrlChanged(u)),
+                on_window("keydown", fn(e) => on_key(e)),
+                on_window("resize", fn(e) => Some(Msg::Resized(tea_viewport_width(), tea_viewport_height())))];
+  match m.gesture {
+    Gesture::Idle => subs(always),
+    _ => subs(always ++ [on_window("pointermove", fn(e) => Some(Msg::PointerMove(ev_client_x(e), ev_client_y(e)))),
+                         on_window("pointerup", fn(e) => Some(Msg::PointerUp)),
+                         on_window("pointercancel", fn(e) => Some(Msg::PointerUp))])
+  }
+}
+
+// ── View ────────────────────────────────────────────────────────────────────
+
+/// Represent a toggle state as an aria-pressed attribute.
+fn pressed(b: Bool) -> Attr<Msg> = aria("pressed", if b { "true" } else { "false" });
+
+/// Render a labelled button that dispatches `msg` when clicked.
+fn btn(cls: String, label_text: String, msg: Msg) -> Html<Msg> =
+  button([attr("type", "button"), class(cls), on_click(msg)], [text(label_text)]);
+
+/// Render view, sidebar and file controls with the current unsaved indicator.
+fn toolbar(m: Model) -> Html<Msg> =
+  div([class("toolbar"), attr("role", "toolbar"), aria("label", "Main toolbar")], [
+    div([class("toolbar-left")], [
+      button([attr("type", "button"), class(if m.sidebar { "btn-active" } else { "" }), pressed(m.sidebar),
+              on_click(Msg::ToggleSidebar)], [text("Sidebar")])
+    ]),
+    div([class("toolbar-center")], [
+      button([attr("type", "button"), class(if m.mode == ViewMode::ListMode { "btn-active" } else { "" }),
+              pressed(m.mode == ViewMode::ListMode), on_click(Msg::SetMode(ViewMode::ListMode))], [text("List")]),
+      button([attr("type", "button"), class(if m.mode == ViewMode::CanvasMode { "btn-active" } else { "" }),
+              pressed(m.mode == ViewMode::CanvasMode), on_click(Msg::SetMode(ViewMode::CanvasMode))], [text("Canvas")]),
+      button([attr("type", "button"), class(if m.mode == ViewMode::GraphMode { "btn-active" } else { "" }),
+              pressed(m.mode == ViewMode::GraphMode), on_click(Msg::SetMode(ViewMode::GraphMode))], [text("Graph")])
+    ]),
+    div([class("toolbar-right")], tea_concat([
+      if m.dirty { [span([class("dirty-indicator")], [text("Unsaved")])] } else { [] },
+      [btn("", "New", Msg::NewNotebook), btn("", "Load", Msg::OpenNotebook), btn("", "Save", Msg::SaveNotebook),
+       btn("", "Import", Msg::ImportVault), btn("", "Export MD", Msg::ExportMarkdown),
+       btn("", "Export OPML", Msg::ExportOpml)]
+    ]))
+  ]);
+
+/// Render dismissible error and notice banners, omitting empty messages.
+fn banners(m: Model) -> [Html<Msg>] =
+  tea_concat([
+    if m.error == "" { [] } else {
+      [div([class("error-banner"), attr("role", "alert")], [
+         span([], [text(m.error)]),
+         button([attr("type", "button"), aria("label", "Dismiss error"), on_click(Msg::DismissError)], [text("×")])])]
+    },
+    if m.notice == "" { [] } else {
+      [div([class("notice-banner"), attr("role", "status")], [
+         span([], [text(m.notice)]),
+         button([attr("type", "button"), aria("label", "Dismiss notice"), on_click(Msg::DismissNotice)], [text("×")])])]
+    }
+  ]);
+
+/// Render a selectable note row with its title and outgoing link count.
+fn note_row(m: Model, n: Note) -> Html<Msg> {
+  let sel = is_selected(m, n.id);
+  let t = title_or_untitled(n.title);
+  li([key(n.id)], [
+    button([attr("type", "button"), pressed(sel), aria("label", t), class(if sel { "note-item selected" } else { "note-item" }),
+            on_click(Msg::Select(n.id))], [
+      span([class("note-title")], [text(t)]),
+      span([class("note-meta")], [text(int_to_string(len(n.links)) ++ " links")])
+    ])
+  ])
+}
+
+/// Render saved-query selection, removal and creation controls.
+fn agents_panel(m: Model) -> Html<Msg> =
+  section([class("agents-panel"), aria("label", "Agents")], [
+    node("h3", [], [text("Agents")]),
+    ul([class("agent-list")], tea_map(m.agents, fn(a) => {
+      let active = m.active_agent == a.id;
+      li([key(a.id), class(if active { "agent-item active" } else { "agent-item" })], [
+        button([attr("type", "button"), class("agent-name"), pressed(active), attr("title", a.query),
+                on_click(if active { Msg::ClearAgent } else { Msg::RunAgent(a.id) })], [text(a.name)]),
+        button([attr("type", "button"), class("btn-remove"), aria("label", "Delete agent " ++ a.name),
+                on_click(Msg::DeleteAgent(a.id))], [text("×")])
+      ])
+    })),
+    div([class("agent-form")], [
+      input([attr("type", "text"), attr("placeholder", "Agent name"), aria("label", "Agent name"),
+             value(m.agent_name), on_input(fn(s) => Msg::SetAgentName(s))]),
+      input([attr("type", "text"), attr("placeholder", "Query, e.g. attr:status=todo"), aria("label", "Agent query"),
+             value(m.agent_query), on_input(fn(s) => Msg::SetAgentQuery(s)), on_enter(Msg::CreateAgent)]),
+      btn("btn-primary", "Add agent", Msg::CreateAgent)
+    ])
+  ]);
+
+/// Render a capped note list, prioritising search over the active agent,
+/// together with search, agent and notebook controls.
+fn sidebar(m: Model) -> Html<Msg> {
+  let all = nx_notes();
+  let listed = if m.search != "" { tea_map(tea_filter(m.results, fn(i) => nx_has(i)), fn(i) => nx_note(i)) }
+               else { if m.active_agent != "" { tea_map(tea_filter(m.agent_results, fn(i) => nx_has(i)), fn(i) => nx_note(i)) }
+               else { all } };
+  // Search results arrive as one page plus the total match count.
+  let total = if m.search != "" { m.results_total } else { len(listed) };
+  let shown = if len(listed) > SIDEBAR_LIMIT { take_notes(listed, SIDEBAR_LIMIT) } else { listed };
+  aside([class("sidebar")], [
+    div([class("sidebar-header")], [
+      h2([], [text(nx_name())]),
+      btn("btn-primary", "+ New Note", Msg::CreateNote)
+    ]),
+    div([class("search-box")], tea_concat([
+      [input([attr("type", "text"), attr("placeholder", "Search notes..."), aria("label", "Search notes"),
+              value(m.search), on_input(fn(s) => Msg::SetSearch(s))])],
+      if m.search == "" { [] } else {
+        [button([attr("type", "button"), aria("label", "Clear search"), class("btn-clear"), on_click(Msg::ClearSearch)], [text("×")])]
+      }
+    ])),
+    ul([class("note-list"), aria("label", "Notes")], tea_map(shown, fn(n) => {
+      let memo = n.id ++ "|" ++ n.title ++ "|" ++ int_to_string(len(n.links)) ++ "|" ++ (if is_selected(m, n.id) { "s" } else { "" });
+      lazy(n.id, memo, fn() => note_row(m, n))
+    })),
+    if total > SIDEBAR_LIMIT {
+      p([class("muted list-more")], [text(int_to_string(total - SIDEBAR_LIMIT) ++ " more — search to narrow")])
+    } else { span([], []) },
+    agents_panel(m),
+    div([class("sidebar-footer")], [span([class("note-count")], [text(int_to_string(nx_count()) ++ " notes")])])
+  ])
+}
+
+/// The first `k` notes.
+fn take_notes(xs: [Note], k: Int) -> [Note] {
+  let mut out = [];
+  let mut i = 0;
+  while i < k && i < len(xs) {
+    out = out ++ [xs[i]];
+    i = i + 1;
+  }
+  out
+}
+
+/// Return the note title, "Untitled" for an empty title, or "(unknown)" for a missing note.
+fn title_of(nid: String) -> String = if nx_has(nid) { title_or_untitled(nx_note(nid).title) } else { "(unknown)" };
+
+/// Render a computed field’s result or error, source and removal control.
+fn field_row(nid: String, f: FieldValue) -> Html<Msg> =
+  li([key(f.name), class(if f.ok { "field" } else { "field field-error" })], [
+    span([class("field-name")], [text(f.name)]),
+    output([class("field-value"), aria("live", "polite")], [text(f.value)]),
+    node("code", [class("field-source")], [text(f.source)]),
+    button([attr("type", "button"), class("btn-remove"), aria("label", "Remove field " ++ f.name),
+            on_click(Msg::RemoveField(nid, f.name))], [text("×")])
+  ]);
+
+/// Computed fields of a note: the stored fields with their live values, and a
+/// form whose formula is evaluated as you type.
+fn fields_panel(m: Model, n: Note) -> Html<Msg> {
+  let preview = nx_preview(n.id, m.field_source);
+  details([class("formula-panel"), prop("open", "true")], [
+    summary([], [text("Computed fields (λδ)")]),
+    p([class("formula-help")], [text("Read-only formulas · self is this note · saved with the note")]),
+    ul([class("field-list"), aria("label", "Computed fields")], tea_map(nx_fields(n.id), fn(f) => field_row(n.id, f))),
+    div([class("field-form")], [
+      input([attr("type", "text"), class("field-name-input"), attr("placeholder", "Field name"), aria("label", "Field name"),
+             value(m.field_name), on_input(fn(s) => Msg::SetFieldName(s))]),
+      textarea([class("formula-source"), aria("label", "LambdaDelta formula"), attr("spellcheck", "false"),
+                value(m.field_source), on_input(fn(s) => Msg::SetFieldSource(s))]),
+      div([class("formula-actions")], [
+        btn("btn-primary", "Add field", Msg::AddField(n.id)),
+        output([class(if preview.ok { "formula-result" } else { "formula-result formula-error" }), aria("live", "polite")],
+               [text(preview.value)])
+      ])
+    ])
+  ])
+}
+
+/// Render note editing, computed fields, outgoing links and backlinks.
+/// A non-empty link query offers up to eight matching, currently unlinked notes.
+fn note_editor(m: Model, n: Note) -> Html<Msg> {
+  let candidates = if m.link_query == "" { [] } else {
+    take_notes(tea_filter(nx_notes(), fn(c) => c.id != n.id && !contains_id(n.links, c.id)
+                                               && nx_contains_ci(c.title, m.link_query)), 8)
+  };
+  let back = nx_backlinks(n.id);
+  div([class("note-editor")], [
+    input([attr("type", "text"), class("note-title-input"), attr("placeholder", "Note title"), aria("label", "Note title"),
+           value(n.title), on_input(fn(s) => Msg::SetTitle(n.id, s))]),
+    textarea([class("note-content-input"), attr("placeholder", "Start writing... use [[Title]] to link notes"),
+              aria("label", "Note content"), value(n.content), on_input(fn(s) => Msg::SetContent(n.id, s))]),
+    div([class("note-metadata")], [span([], [text("Created: " ++ n.created)]), span([], [text("Modified: " ++ n.modified)])]),
+    fields_panel(m, n),
+    div([class("note-links")], tea_concat([
+      [node("h4", [], [text("Links")])],
+      if len(n.links) == 0 { [p([class("muted")], [text("No links yet.")])] } else {
+        [ul([], tea_map(n.links, fn(t) => li([key(t)], [
+          button([attr("type", "button"), class("link-target"), on_click(Msg::Select(t))], [text(title_of(t))]),
+          button([attr("type", "button"), class("btn-remove"), aria("label", "Remove link to " ++ title_of(t)),
+                  on_click(Msg::Unlink(n.id, t))], [text("×")])])))]
+      },
+      [div([class("link-picker")], [
+        input([attr("type", "text"), attr("placeholder", "Link to a note..."), aria("label", "Link to a note"),
+               value(m.link_query), on_input(fn(s) => Msg::SetLinkQuery(s))]),
+        ul([class("link-candidates")], tea_map(candidates, fn(c) => li([key(c.id)], [
+          button([attr("type", "button"), on_click(Msg::Link(n.id, c.id))], [text(title_or_untitled(c.title))])])))
+      ])]
+    ])),
+    if len(back) == 0 { span([], []) } else {
+      div([class("note-backlinks")], [
+        node("h4", [], [text("Linked from")]),
+        ul([], tea_map(back, fn(s) => li([key(s)], [
+          button([attr("type", "button"), class("link-target"), on_click(Msg::Select(s))], [text(title_of(s))])])))
+      ])
+    }
+  ])
+}
+
+/// Whether `xs` contains `x`.
+fn contains_id(xs: [String], x: String) -> Bool {
+  for y in xs {
+    if y == x {
+      return true;
+    }
+  }
+  false
+}
+
+/// Show the editor for a single existing selected note, otherwise a creation prompt.
+fn list_view(m: Model) -> Html<Msg> {
+  let one = selected_one(m);
+  div([class("list-view")], [
+    if one != "" && nx_has(one) { note_editor(m, nx_note(one)) } else {
+      div([class("empty-state")], [
+        p([], [text("Select a note or create a new one")]),
+        btn("btn-primary", "Create Note", Msg::CreateNote)
+      ])
+    }
+  ])
+}
+
+/// Below this zoom the canvas switches to its far level of detail: cards show
+/// only their title (previews and fields would be unreadably small).
+pub const FAR_ZOOM: Float = 0.35;
+
+/// A note card on the canvas: title, a content preview and its computed
+/// fields' live values — or, while it is being edited, inline inputs. At far
+/// zoom only the title is drawn unless the card is being edited.
+fn card(m: Model, n: Note) -> Html<Msg> {
+  let sel = is_selected(m, n.id);
+  let t = title_or_untitled(n.title);
+  let size = if n.w > 0.0 { [style("width", nx_num(n.w) ++ "px"), style("height", nx_num(n.h) ++ "px")] } else { [] };
+  let body = if m.editing == n.id {
+    [input([class("card-title-input"), aria("label", "Note title"), value(n.title),
+            on_input(fn(s) => Msg::SetTitle(n.id, s)), on("pointerdown", fn(e) => { ev_stop(e); None })]),
+     textarea([class("card-content-input"), aria("label", "Note content"), value(n.content),
+               on_input(fn(s) => Msg::SetContent(n.id, s)), on("pointerdown", fn(e) => { ev_stop(e); None })])]
+  } else { if m.viewport.zoom < FAR_ZOOM { [div([class("canvas-note-title")], [text(t)])] } else {
+    tea_concat([
+      [div([class("canvas-note-title")], [text(t)])],
+      if n.content == "" { [] } else {
+        [div([class("canvas-note-preview")],
+             [text(nx_prefix(n.content, 100) ++ (if nx_char_count(n.content) > 100 { "..." } else { "" }))])]
+      },
+      if n.field_count == 0 { [] } else {
+        [ul([class("canvas-note-fields")], tea_map(nx_fields(n.id), fn(f) =>
+          li([key(f.name), class(if f.ok { "field" } else { "field field-error" })],
+             [span([class("field-name")], [text(f.name)]), text(" = "),
+              output([class("field-value")], [text(f.value)])])))]
+      }
+    ])
+  } };
+  div(tea_concat([
+    [key(n.id), data("id", n.id), attr("role", "button"), attr("tabindex", "0"), pressed(sel), aria("label", t),
+     class(if sel { "canvas-note selected" } else { "canvas-note" }),
+     style("left", nx_num(n.x) ++ "px"), style("top", nx_num(n.y) ++ "px"),
+     on("pointerdown", fn(e) => { ev_stop(e); ev_prevent(e);
+                                  Some(Msg::BeginDrag(n.id, ev_client_x(e), ev_client_y(e), ev_shift(e))) }),
+     on("dblclick", fn(e) => { ev_stop(e); Some(Msg::StartEditing(n.id)) }),
+     on("keydown", fn(e) => if (ev_key(e) == "Enter" || ev_key(e) == " ") && m.editing != n.id
+                              && !ev_target_editable(e) { ev_prevent(e); Some(Msg::StartEditing(n.id)) } else { None })],
+    size
+  ]), body)
+}
+
+/// Everything a canvas card's view reads: the note (its read-model version
+/// bumps with every edit and move), whether it is selected or edited, and —
+/// when it shows computed fields, which can depend on any note — the
+/// read-model revision. The key also includes the near/far zoom category.
+/// Unchanged cards can reuse their rendered view within that category.
+fn card_memo(m: Model, n: Note) -> String =
+  n.id ++ "|" ++ int_to_string(n.ver) ++ "|" ++ (if is_selected(m, n.id) { "s" } else { "" })
+    ++ "|" ++ (if m.editing == n.id { "e" } else { "" })
+    ++ "|" ++ (if n.field_count > 0 { int_to_string(m.rev) } else { "" })
+    ++ "|" ++ (if m.viewport.zoom < FAR_ZOOM { "far" } else { "" });
+
+/// Render visible placed notes with pan, zoom, drag and creation controls.
+fn canvas_view(m: Model) -> Html<Msg> {
+  let v = m.viewport;
+  let shown = tea_filter(nx_notes(), fn(n) => visible(v, m.screen_w, m.screen_h, n));
+  div([class("canvas-view"), data("visible", int_to_string(len(shown))),
+       on("pointerdown", fn(e) => Some(Msg::BeginPan(ev_client_x(e), ev_client_y(e)))),
+       on("wheel", fn(e) => { ev_prevent(e); Some(Msg::ZoomBy(if ev_delta_y(e) < 0.0 { 1.1 } else { 0.9 })) }),
+       on("dblclick", fn(e) => Some(Msg::CreateNoteAt(ev_local_x(e), ev_local_y(e))))], [
+    div([class(if v.zoom < FAR_ZOOM { "canvas far" } else { "canvas" }),
+         style("transform", "translate(" ++ nx_num(v.ox) ++ "px, " ++ nx_num(v.oy) ++ "px) scale(" ++ nx_num(v.zoom) ++ ")")],
+        tea_map(shown, fn(n) => lazy(n.id, card_memo(m, n), fn() => card(m, n)))),
+    div([class("canvas-controls")], [
+      button([attr("type", "button"), aria("label", "Zoom in"), on_click(Msg::ZoomBy(1.2))], [text("+")]),
+      button([attr("type", "button"), aria("label", "Zoom out"), on_click(Msg::ZoomBy(0.8))], [text("-")]),
+      button([attr("type", "button"), aria("label", "Reset view"), on_click(Msg::ResetViewport)], [text("Reset")]),
+      span([class("canvas-zoom")], [text(nx_num(v.zoom * 100.0) ++ "%")])
+    ])
+  ])
+}
+
+/// Render a circular graph of the first GRAPH_LIMIT notes in title order,
+/// including only links whose endpoints are both shown.
+fn graph_view(m: Model) -> Html<Msg> {
+  let notes = take_notes(nx_notes(), GRAPH_LIMIT);
+  let w = 800.0;
+  let h = 600.0;
+  let nodes = circular(notes, w, h);
+  if len(nodes) == 0 {
+    return div([class("graph-view")], [div([class("empty-state")], [p([], [text("No notes yet — create some to see the graph.")])])]);
+  }
+  let ix = graph_index(nodes);
+  let edges = tea_concat(tea_map(notes, fn(n) => {
+    let from = graph_at(ix, n.id);
+    if from < 0 { [] } else {
+      tea_map(tea_filter(n.links, fn(t) => graph_at(ix, t) >= 0), fn(t) => {
+        let a = nodes[from];
+        let b = nodes[graph_at(ix, t)];
+        svg_node("line", [key(n.id ++ "-" ++ t), class("graph-edge"), attr("x1", nx_num(a.x)), attr("y1", nx_num(a.y)),
+                          attr("x2", nx_num(b.x)), attr("y2", nx_num(b.y))], [])
+      })
+    }
+  }));
+  let circles = tea_map(nodes, fn(g) => svg_node("g", [key(g.id), class(if is_selected(m, g.id) { "graph-node selected" } else { "graph-node" }),
+      attr("role", "button"), attr("tabindex", "0"), aria("label", g.title), on_click(Msg::Select(g.id))], [
+    svg_node("circle", [attr("cx", nx_num(g.x)), attr("cy", nx_num(g.y)), attr("r", "10")], []),
+    svg_node("text", [attr("x", nx_num(g.x)), attr("y", nx_num(g.y - 16.0)), attr("text-anchor", "middle")], [text(g.title)])
+  ]));
+  div([class("graph-view")], tea_concat([
+    [svg_node("svg", [class("graph-svg"), attr("viewBox", "0 0 800 600"), attr("role", "img"), aria("label", "Note graph")],
+              tea_concat([edges, circles]))],
+    if nx_count() > GRAPH_LIMIT {
+      [p([class("muted")], [text("Showing the first " ++ int_to_string(GRAPH_LIMIT) ++ " of " ++ int_to_string(nx_count()) ++ " notes.")])]
+    } else { [] }
+  ]))
+}
+
+/// Opaque id → position index over graph nodes (host string map).
+pub extern type GraphIndex;
+/// Map each key to its first zero-based position in `keys`.
+pub extern fn tea_key_index(keys: [String]) -> GraphIndex;
+/// Return the indexed position of `k`, or -1 when absent.
+pub extern fn tea_key_lookup(ix: GraphIndex, k: String) -> Int;
+/// Index each graph node id by its first zero-based position.
+fn graph_index(nodes: [GraphNode]) -> GraphIndex = tea_key_index(tea_map(nodes, fn(g) => g.id));
+/// Return a graph node’s indexed position, or -1 when absent.
+fn graph_at(ix: GraphIndex, nid: String) -> Int = tea_key_lookup(ix, nid);
+
+/// Render startup status until boot completes, then the active view and optional sidebar.
+pub fn view(m: Model) -> Html<Msg> {
+  if !m.booted {
+    return div([class("app")], tea_concat([banners(m), [div([class("loading"), attr("role", "status")], [text("Loading Nexia-List…")])]]));
+  }
+  div([class("app"), data("rev", int_to_string(m.rev))], tea_concat([
+    banners(m),
+    [toolbar(m),
+     div([class("main-content")], tea_concat([
+       if m.sidebar { [sidebar(m)] } else { [] },
+       [main_([class("content-area")], [
+         match m.mode {
+           ViewMode::ListMode => list_view(m),
+           ViewMode::CanvasMode => canvas_view(m),
+           ViewMode::GraphMode => graph_view(m)
+         }
+       ])]
+     ]))]
+  ]))
+}
+
+// ── Program ─────────────────────────────────────────────────────────────────
+
+/// Create initial view state and a command that loads WASM and restores the autosave.
+pub fn init() -> (Model, Cmd<Msg>) =
+  (initial_model(), run_cmd(fn(dispatch) => nx_boot(WASM_URL, fn(b) => dispatch(Msg::Booted(b)))));
+
+/// Entry point: mount on `#root`.
+pub fn main() -> Unit = run("#root", init(), update, view, subscriptions);
