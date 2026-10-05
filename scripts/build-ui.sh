@@ -15,6 +15,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 as_home="${AFFINESCRIPT_HOME:-$root/.affinescript}"
 compiler="$as_home/_build/default/bin/main.exe"
 tea_src="$as_home/affinescript-tea/src"
+router_src="$as_home/affinescript-router/src"
 dist="$root/web/dist"
 
 if [ ! -x "$compiler" ]; then
@@ -30,10 +31,11 @@ fi
 mkdir -p "$dist/wasm"
 (
   cd "$root/ui/src"
-  AFFINESCRIPT_STDLIB="$as_home/stdlib" AFFINESCRIPT_PATH="$tea_src" \
+  AFFINESCRIPT_STDLIB="$as_home/stdlib" AFFINESCRIPT_PATH="$tea_src:$router_src" \
     "$compiler" compile --bun-esm App.affine -o "$dist/app.bun.js"
 )
 cp "$tea_src/tea_host.js" "$dist/tea_host.js"
+cp "$router_src/router_host.js" "$dist/router_host.js"
 cp "$root/ui/host/nexia_host.js" "$dist/nexia_host.js"
 cp "$root"/web/wasm/nexia_core.js "$root"/web/wasm/nexia_core_bg.wasm "$dist/wasm/"
 for asset in index.html styles.css manifest.webmanifest service-worker.js icon.svg; do

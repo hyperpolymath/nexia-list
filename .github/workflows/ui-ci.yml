@@ -33,7 +33,7 @@ concurrency:
 env:
   LEGACY_BLOCKING: "false"
   COMPILER_REPO: hyperpolymath/affinescript
-  COMPILER_REF: 587d8bb2e9f420d3c8a1761aef6606d00028bd34
+  COMPILER_REF: f3368d98a84768fc63eaf9b059d2040770a8b5c6
 
 jobs:
   affinescript-verify:
@@ -133,7 +133,7 @@ jobs:
             # from the pinned compiler checkout.
             if (cd "$(dirname "$abs")" && \
                 AFFINESCRIPT_STDLIB="$GITHUB_WORKSPACE/.affinescript-compiler/stdlib" \
-                AFFINESCRIPT_PATH="$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-tea/src" \
+                AFFINESCRIPT_PATH="$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-tea/src:$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-router/src" \
                 "$GITHUB_WORKSPACE/.affinescript-compiler/_build/default/bin/main.exe" check "$(basename "$abs")") 2>&1; then
               echo "✅ $f"
             elif is_added "$f"; then

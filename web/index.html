@@ -20,6 +20,7 @@
       // AffineScript app calls; importing app.bun.js then runs its `main`
       // (the Bun-ESM backend invokes `main` on load), mounting on #root.
       import "./tea_host.js";
+      import "./router_host.js";
       import "./nexia_host.js";
       import "./app.bun.js";
       if ("serviceWorker" in navigator) {

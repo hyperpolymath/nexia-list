@@ -2,13 +2,14 @@
 // Offline-first service worker: precache the app shell + wasm, serve
 // cache-first, and fall back to the network for anything uncached.
 
-const CACHE = "nexia-v2";
+const CACHE = "nexia-v3";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.bun.js",
   "./tea_host.js",
+  "./router_host.js",
   "./nexia_host.js",
   "./manifest.webmanifest",
   "./icon.svg",

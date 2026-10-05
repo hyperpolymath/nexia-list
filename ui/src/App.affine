@@ -21,6 +21,7 @@ use Store::{Note, FieldValue, Agent, Outcome, Boot, SearchPage, nx_boot, nx_auto
             nx_preview, nx_create, nx_set_title, nx_set_content, nx_move, nx_delete, nx_link,
             nx_unlink, nx_set_field, nx_remove_field, nx_add_agent, nx_remove_agent, nx_contains_ci,
             nx_prefix, nx_char_count, nx_trim, nx_num};
+use Router::{Url, current_url, on_url_change, navigate, replace, match_route, href};
 use Geometry::{Direction, Viewport, GraphNode, Up, Down, Left, Right, initial_viewport, nearest,
                nudge, zoom_by, pan_by, to_canvas, visible, circular};
 
@@ -65,7 +66,9 @@ pub struct Model {
   link_query: String,
   field_name: String,
   field_source: String,
-  gesture: Gesture
+  gesture: Gesture,
+  /// The URL seen at startup, applied once the notebook has loaded.
+  boot_url: Url
 }
 
 /// How many notes the sidebar lists before asking the user to search.
@@ -80,7 +83,7 @@ pub fn initial_model() -> Model =
            search: "", results: [], results_total: 0, results_rev: 0 - 1, agent_rev: 0 - 1, sidebar: true, dirty: false, error: "", notice: "",
            agents: [], active_agent: "", agent_results: [], agent_name: "", agent_query: "",
            link_query: "", field_name: "", field_source: "(count (words (content self)))",
-           gesture: Gesture::Idle };
+           gesture: Gesture::Idle, boot_url: current_url() };
 
 /// The single selected note's id, or "".
 pub fn selected_one(m: Model) -> String = if len(m.selection) == 1 { m.selection[0] } else { "" };
@@ -149,6 +152,7 @@ pub enum Msg {
   Resized(Float, Float),
   DismissError,
   DismissNotice,
+  UrlChanged(Url),
   NoOp
 }
 
@@ -183,12 +187,59 @@ fn with_search(m: Model, q: String) -> Model {
   Model #{ ..m, search: q, results: page.ids, results_total: page.total, results_rev: m.rev }
 }
 
-/// Every transition goes through here: run the step, then keep derived lists
-/// (search results, the active agent's collection) live against the core —
-/// recomputed only when the notebook changed since they were computed, so
-/// pan/zoom frames never re-run a query.
+// ── Routing (deep links) ────────────────────────────────────────────────────
+//   #/            list view          #/note/<id>   list view, note open
+//   #/canvas      canvas view        #/graph       graph view
+
+/// The route that describes `m`'s view.
+pub fn route_of(m: Model) -> String {
+  let one = selected_one(m);
+  match m.mode {
+    ViewMode::CanvasMode => "/canvas",
+    ViewMode::GraphMode => "/graph",
+    ViewMode::ListMode => if one != "" { href(["note", one]) } else { "/" }
+  }
+}
+
+/// `m` showing what `u` denotes (unknown notes and paths fall back to the
+/// list view).
+pub fn apply_url(m: Model, u: Url) -> Model {
+  if u.path == "/canvas" { return Model #{ ..m, mode: ViewMode::CanvasMode, editing: "" }; }
+  if u.path == "/graph" { return Model #{ ..m, mode: ViewMode::GraphMode, editing: "" }; }
+  match match_route("/note/:id", u.path) {
+    Some(caps) =>
+      if nx_has(caps[0]) { Model #{ ..m, mode: ViewMode::ListMode, selection: [caps[0]], editing: "" } }
+      else { Model #{ ..m, mode: ViewMode::ListMode } },
+    None => Model #{ ..m, mode: ViewMode::ListMode }
+  }
+}
+
+/// Keep the URL in step with the view: a view change adds a history entry
+/// (Back returns to the previous view); a selection change replaces it.
+fn sync_url(prev: Model, next: Model) -> Cmd<Msg> {
+  if !next.booted || !prev.booted {
+    return none();
+  }
+  let r = route_of(next);
+  if r == route_of(prev) {
+    none()
+  } else {
+    if next.mode != prev.mode { navigate(r, fn(u) => Msg::UrlChanged(u)) }
+    else { replace(r, fn(u) => Msg::UrlChanged(u)) }
+  }
+}
+
+/// Every transition goes through here: run the step, keep the URL in step,
+/// then keep derived lists (search results, the active agent's collection)
+/// live against the core — recomputed only when the notebook changed since
+/// they were computed, so pan/zoom frames never re-run a query.
 pub fn update(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
-  let (next, cmd) = step(msg, m);
+  let (stepped, step_cmd) = step(msg, m);
+  let next = stepped;
+  // A change that came from the URL must not write the URL back (pushing
+  // there would truncate the forward history Back/Forward walk through).
+  let url_cmd = match msg { Msg::UrlChanged(_) => none(), _ => sync_url(m, stepped) };
+  let cmd = batch([step_cmd, url_cmd]);
   let searched = if next.search == "" || next.results_rev == next.rev { next }
                  else { with_search(next, next.search) };
   let agented = if searched.active_agent == "" || searched.agent_rev == searched.rev { searched }
@@ -217,7 +268,8 @@ pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
   match msg {
     Msg::Booted(b) =>
       if b.ok {
-        (Model #{ ..m, booted: true, rev: nx_rev(), agents: nx_agents(), notice: b.notice }, none())
+        let booted = Model #{ ..m, booted: true, rev: nx_rev(), agents: nx_agents(), notice: b.notice };
+        (apply_url(booted, m.boot_url), none())
       } else {
         (Model #{ ..m, error: "Nexia-List failed to start: " ++ b.error }, none())
       },
@@ -366,6 +418,9 @@ pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
 
     Msg::DismissError => (Model #{ ..m, error: "" }, none()),
     Msg::DismissNotice => (Model #{ ..m, notice: "" }, none()),
+    // A URL change (back/forward, a deep link, or our own navigate/replace)
+    // sets the view it denotes; when it already matches, nothing changes.
+    Msg::UrlChanged(u) => (apply_url(m, u), none()),
     Msg::NoOp => (m, none())
   }
 }
@@ -391,7 +446,8 @@ fn on_key(e: Event) -> Option<Msg> {
 }
 
 pub fn subscriptions(m: Model) -> Sub<Msg> {
-  let always = [on_window("keydown", fn(e) => on_key(e)),
+  let always = [on_url_change(fn(u) => Msg::UrlChanged(u)),
+                on_window("keydown", fn(e) => on_key(e)),
                 on_window("resize", fn(e) => Some(Msg::Resized(tea_viewport_width(), tea_viewport_height())))];
   match m.gesture {
     Gesture::Idle => subs(always),

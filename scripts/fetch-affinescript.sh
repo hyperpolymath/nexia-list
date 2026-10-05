@@ -8,10 +8,10 @@
 # pinned commit is built.
 set -euo pipefail
 
-# hyperpolymath/affinescript: affinescript-tea + the compiler fixes the UI
-# needs (PRs #777/#778). Bump to the merge commit on main once they land.
+# hyperpolymath/affinescript: affinescript-tea, affinescript-router and the
+# compiler fixes the UI needs (PRs #777/#778). Bump to the merge commit on main once they land.
 AFFINESCRIPT_REPO="https://github.com/hyperpolymath/affinescript.git"
-AFFINESCRIPT_REF="587d8bb2e9f420d3c8a1761aef6606d00028bd34"
+AFFINESCRIPT_REF="f3368d98a84768fc63eaf9b059d2040770a8b5c6"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 dest="${AFFINESCRIPT_HOME:-$root/.affinescript}"

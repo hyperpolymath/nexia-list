@@ -363,3 +363,45 @@ describe("keyboard", () => {
     await context.close();
   });
 });
+
+describe("deep links", () => {
+  test("views and the open note live in the URL; Back returns to the previous view", async () => {
+    const profile = freshProfile();
+    const { context, page, errors } = await open(url, profile);
+    await newNote(page);
+    await page.fill(".note-title-input", "Linked");
+    await eventually(
+      () =>
+        page.$eval(".note-item.selected", (b) => b.getAttribute("aria-label")),
+      (label) => expect(label).toBe("Linked"),
+    );
+    const hash = () => page.evaluate(() => location.hash);
+    await eventually(hash, (h) =>
+      expect(h).toMatch(/^#\/note\/[0-9a-f-]{36}$/),
+    );
+    const noteHash = await hash();
+    const historyLength = await page.evaluate(() => history.length);
+
+    await page.click("button:text-is('Canvas')");
+    await eventually(hash, (h) => expect(h).toBe("#/canvas"));
+    await page.click("button:text-is('Graph')");
+    await eventually(hash, (h) => expect(h).toBe("#/graph"));
+    // View changes add history entries; Back returns through them.
+    expect(await page.evaluate(() => history.length)).toBe(historyLength + 2);
+    await page.goBack();
+    await page.waitForSelector(".canvas-view");
+    await page.goBack();
+    await page.waitForSelector(".note-editor");
+    expect(await page.inputValue(".note-title-input")).toBe("Linked");
+    await autosaved(page);
+    await context.close();
+
+    // A deep link opens that note directly on a fresh load.
+    const again = await open(`${url}${noteHash}`, profile);
+    await again.page.waitForSelector(".note-editor");
+    expect(await again.page.inputValue(".note-title-input")).toBe("Linked");
+    expect(errors).toEqual([]);
+    expect(again.errors).toEqual([]);
+    await again.context.close();
+  });
+});
