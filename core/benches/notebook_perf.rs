@@ -8,6 +8,8 @@
 //!
 //! Budgets (p95, native release build):
 //! * substring search over title + content ........ < 10 ms
+//!   (repeated searches use the notebook's lowercase cache; the first search
+//!   after an edit, which rebuilds it, is reported separately)
 //! * backlink lookup .............................. < 10 ms
 //!
 //! Everything else is reported but not gated: it is not on the per-keystroke
@@ -188,6 +190,15 @@ fn main() {
             black_box(nb.search(queries[i % queries.len()]));
         }),
         true,
+    );
+    row(
+        "search right after an edit (cache)",
+        measure(iters.min(50), |i| {
+            let id = ids[(i * 31) % NOTES];
+            nb.set_content(&id, format!("edited {i}"));
+            black_box(nb.search(queries[i % queries.len()]));
+        }),
+        false,
     );
     row(
         "backlinks (single note)",

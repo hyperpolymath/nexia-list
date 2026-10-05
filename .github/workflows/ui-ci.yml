@@ -33,7 +33,7 @@ concurrency:
 env:
   LEGACY_BLOCKING: "false"
   COMPILER_REPO: hyperpolymath/affinescript
-  COMPILER_REF: c239711f55a6a3b9120333c51bb7d38bd794e062
+  COMPILER_REF: 587d8bb2e9f420d3c8a1761aef6606d00028bd34
 
 jobs:
   affinescript-verify:

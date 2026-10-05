@@ -10,12 +10,12 @@ module App;
 use prelude::*;
 use Tea::{Html, Attr, Cmd, Sub, Event, run, text, node, svg_node, div, span, button, input, textarea,
           label, ul, li, h2, p, section, header, main_, nav, aside, details, summary, output,
-          attr, prop, style, key, class, id, value, aria, data, on, on_click, on_input, on_enter,
+          attr, prop, style, key, class, id, value, aria, data, lazy, on, on_click, on_input, on_enter,
           none, batch, run_cmd, no_sub, subs, on_window, tea_map, tea_filter, tea_concat,
           ev_client_x, ev_client_y, ev_local_x, ev_local_y, ev_delta_y, ev_key, ev_ctrl, ev_meta,
           ev_shift, ev_target_editable, ev_prevent, ev_stop, tea_viewport_width,
           tea_viewport_height};
-use Store::{Note, FieldValue, Agent, Outcome, Boot, nx_boot, nx_autosave, nx_save_file, nx_open_file,
+use Store::{Note, FieldValue, Agent, Outcome, Boot, SearchPage, nx_boot, nx_autosave, nx_save_file, nx_open_file,
             nx_export_markdown, nx_export_opml, nx_import_vault, nx_reset, nx_rev, nx_name, nx_count,
             nx_notes, nx_has, nx_note, nx_backlinks, nx_search, nx_agents, nx_run_agent, nx_fields,
             nx_preview, nx_create, nx_set_title, nx_set_content, nx_move, nx_delete, nx_link,
@@ -48,6 +48,11 @@ pub struct Model {
   screen_h: Float,
   search: String,
   results: [String],
+  /// Total number of search matches (`results` holds the first page).
+  results_total: Int,
+  /// Read-model revision `results`/`agent_results` were computed at.
+  results_rev: Int,
+  agent_rev: Int,
   sidebar: Bool,
   dirty: Bool,
   error: String,
@@ -72,7 +77,7 @@ pub const WASM_URL: String = "./wasm/nexia_core_bg.wasm";
 pub fn initial_model() -> Model =
   Model #{ booted: false, rev: 0, mode: ViewMode::ListMode, selection: [], editing: "",
            viewport: initial_viewport(), screen_w: tea_viewport_width(), screen_h: tea_viewport_height(),
-           search: "", results: [], sidebar: true, dirty: false, error: "", notice: "",
+           search: "", results: [], results_total: 0, results_rev: 0 - 1, agent_rev: 0 - 1, sidebar: true, dirty: false, error: "", notice: "",
            agents: [], active_agent: "", agent_results: [], agent_name: "", agent_query: "",
            link_query: "", field_name: "", field_source: "(count (words (content self)))",
            gesture: Gesture::Idle };
@@ -166,16 +171,28 @@ fn created(m: Model, o: Outcome) -> (Model, Cmd<Msg>) =
 
 /// View state reset after the whole notebook is replaced.
 fn reloaded(m: Model) -> Model =
-  Model #{ ..m, rev: nx_rev(), dirty: false, selection: [], editing: "", search: "", results: [],
+  Model #{ ..m, rev: nx_rev(), dirty: false, selection: [], editing: "", search: "", results: [], results_total: 0,
            agents: nx_agents(), active_agent: "", agent_results: [], link_query: "", error: "" };
 
+/// `m` searching for `q`: the first sidebar page of matches and the total.
+fn with_search(m: Model, q: String) -> Model {
+  if q == "" {
+    return Model #{ ..m, search: q, results: [], results_total: 0, results_rev: m.rev };
+  }
+  let page = nx_search(q, SIDEBAR_LIMIT);
+  Model #{ ..m, search: q, results: page.ids, results_total: page.total, results_rev: m.rev }
+}
+
 /// Every transition goes through here: run the step, then keep derived lists
-/// (search results, the active agent's collection) live against the core.
+/// (search results, the active agent's collection) live against the core —
+/// recomputed only when the notebook changed since they were computed, so
+/// pan/zoom frames never re-run a query.
 pub fn update(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
   let (next, cmd) = step(msg, m);
-  let searched = if next.search == "" { next } else { Model #{ ..next, results: nx_search(next.search) } };
-  let agented = if searched.active_agent == "" { searched }
-                else { Model #{ ..searched, agent_results: nx_run_agent(searched.active_agent) } };
+  let searched = if next.search == "" || next.results_rev == next.rev { next }
+                 else { with_search(next, next.search) };
+  let agented = if searched.active_agent == "" || searched.agent_rev == searched.rev { searched }
+                else { Model #{ ..searched, agent_results: nx_run_agent(searched.active_agent), agent_rev: searched.rev } };
   (agented, cmd)
 }
 
@@ -257,8 +274,8 @@ pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
       }
     },
 
-    Msg::SetSearch(q) => (Model #{ ..m, search: q, results: if q == "" { [] } else { nx_search(q) } }, none()),
-    Msg::ClearSearch => (Model #{ ..m, search: "", results: [] }, none()),
+    Msg::SetSearch(q) => (with_search(m, q), none()),
+    Msg::ClearSearch => (Model #{ ..m, search: "", results: [], results_total: 0 }, none()),
 
     Msg::NewNotebook => {
       let o = nx_reset("Untitled Notebook");
@@ -304,7 +321,7 @@ pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
       if o.ok { (Model #{ ..cleared, agents: nx_agents(), dirty: true, rev: nx_rev() }, autosave()) }
       else { (Model #{ ..m, error: o.error }, none()) }
     },
-    Msg::RunAgent(aid) => (Model #{ ..m, active_agent: aid, agent_results: nx_run_agent(aid) }, none()),
+    Msg::RunAgent(aid) => (Model #{ ..m, active_agent: aid, agent_results: nx_run_agent(aid), agent_rev: m.rev }, none()),
     Msg::ClearAgent => (Model #{ ..m, active_agent: "", agent_results: [] }, none()),
 
     Msg::SetLinkQuery(q) => (Model #{ ..m, link_query: q }, none()),
@@ -465,8 +482,9 @@ fn sidebar(m: Model) -> Html<Msg> {
   let listed = if m.search != "" { tea_map(tea_filter(m.results, fn(i) => nx_has(i)), fn(i) => nx_note(i)) }
                else { if m.active_agent != "" { tea_map(tea_filter(m.agent_results, fn(i) => nx_has(i)), fn(i) => nx_note(i)) }
                else { all } };
-  let total = len(listed);
-  let shown = if total > SIDEBAR_LIMIT { take_notes(listed, SIDEBAR_LIMIT) } else { listed };
+  // Search results arrive as one page plus the total match count.
+  let total = if m.search != "" { m.results_total } else { len(listed) };
+  let shown = if len(listed) > SIDEBAR_LIMIT { take_notes(listed, SIDEBAR_LIMIT) } else { listed };
   aside([class("sidebar")], [
     div([class("sidebar-header")], [
       h2([], [text(nx_name())]),
@@ -479,7 +497,10 @@ fn sidebar(m: Model) -> Html<Msg> {
         [button([attr("type", "button"), aria("label", "Clear search"), class("btn-clear"), on_click(Msg::ClearSearch)], [text("×")])]
       }
     ])),
-    ul([class("note-list"), aria("label", "Notes")], tea_map(shown, fn(n) => note_row(m, n))),
+    ul([class("note-list"), aria("label", "Notes")], tea_map(shown, fn(n) => {
+      let memo = n.id ++ "|" ++ n.title ++ "|" ++ int_to_string(len(n.links)) ++ "|" ++ (if is_selected(m, n.id) { "s" } else { "" });
+      lazy(n.id, memo, fn() => note_row(m, n))
+    })),
     if total > SIDEBAR_LIMIT {
       p([class("muted list-more")], [text(int_to_string(total - SIDEBAR_LIMIT) ++ " more — search to narrow")])
     } else { span([], []) },
@@ -591,8 +612,13 @@ fn list_view(m: Model) -> Html<Msg> {
   ])
 }
 
+/// Below this zoom the canvas switches to its far level of detail: cards show
+/// only their title (previews and fields would be unreadably small).
+pub const FAR_ZOOM: Float = 0.35;
+
 /// A note card on the canvas: title, a content preview and its computed
-/// fields' live values — or, while it is being edited, inline inputs.
+/// fields' live values — or, while it is being edited, inline inputs. At far
+/// zoom only the title is drawn.
 fn card(m: Model, n: Note) -> Html<Msg> {
   let sel = is_selected(m, n.id);
   let t = title_or_untitled(n.title);
@@ -602,7 +628,7 @@ fn card(m: Model, n: Note) -> Html<Msg> {
             on_input(fn(s) => Msg::SetTitle(n.id, s)), on("pointerdown", fn(e) => { ev_stop(e); None })]),
      textarea([class("card-content-input"), aria("label", "Note content"), value(n.content),
                on_input(fn(s) => Msg::SetContent(n.id, s)), on("pointerdown", fn(e) => { ev_stop(e); None })])]
-  } else {
+  } else { if m.viewport.zoom < FAR_ZOOM { [div([class("canvas-note-title")], [text(t)])] } else {
     tea_concat([
       [div([class("canvas-note-title")], [text(t)])],
       if n.content == "" { [] } else {
@@ -616,7 +642,7 @@ fn card(m: Model, n: Note) -> Html<Msg> {
               output([class("field-value")], [text(f.value)])])))]
       }
     ])
-  };
+  } };
   div(tea_concat([
     [key(n.id), data("id", n.id), attr("role", "button"), attr("tabindex", "0"), pressed(sel), aria("label", t),
      class(if sel { "canvas-note selected" } else { "canvas-note" }),
@@ -630,6 +656,16 @@ fn card(m: Model, n: Note) -> Html<Msg> {
   ]), body)
 }
 
+/// Everything a canvas card's view reads: the note (its read-model version
+/// bumps with every edit and move), whether it is selected or edited, and —
+/// when it shows computed fields, which can depend on any note — the
+/// read-model revision. Unchanged cards are skipped while panning/zooming.
+fn card_memo(m: Model, n: Note) -> String =
+  n.id ++ "|" ++ int_to_string(n.ver) ++ "|" ++ (if is_selected(m, n.id) { "s" } else { "" })
+    ++ "|" ++ (if m.editing == n.id { "e" } else { "" })
+    ++ "|" ++ (if n.field_count > 0 { int_to_string(m.rev) } else { "" })
+    ++ "|" ++ (if m.viewport.zoom < FAR_ZOOM { "far" } else { "" });
+
 fn canvas_view(m: Model) -> Html<Msg> {
   let v = m.viewport;
   let shown = tea_filter(nx_notes(), fn(n) => visible(v, m.screen_w, m.screen_h, n));
@@ -637,9 +673,9 @@ fn canvas_view(m: Model) -> Html<Msg> {
        on("pointerdown", fn(e) => Some(Msg::BeginPan(ev_client_x(e), ev_client_y(e)))),
        on("wheel", fn(e) => { ev_prevent(e); Some(Msg::ZoomBy(if ev_delta_y(e) < 0.0 { 1.1 } else { 0.9 })) }),
        on("dblclick", fn(e) => Some(Msg::CreateNoteAt(ev_local_x(e), ev_local_y(e))))], [
-    div([class("canvas"),
+    div([class(if v.zoom < FAR_ZOOM { "canvas far" } else { "canvas" }),
          style("transform", "translate(" ++ nx_num(v.ox) ++ "px, " ++ nx_num(v.oy) ++ "px) scale(" ++ nx_num(v.zoom) ++ ")")],
-        tea_map(shown, fn(n) => card(m, n))),
+        tea_map(shown, fn(n) => lazy(n.id, card_memo(m, n), fn() => card(m, n)))),
     div([class("canvas-controls")], [
       button([attr("type", "button"), aria("label", "Zoom in"), on_click(Msg::ZoomBy(1.2))], [text("+")]),
       button([attr("type", "button"), aria("label", "Zoom out"), on_click(Msg::ZoomBy(0.8))], [text("-")]),

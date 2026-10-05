@@ -556,6 +556,36 @@ impl WasmNotebook {
             .collect()
     }
 
+    /// Search returning at most `limit` ids (sorted by title, then id) plus
+    /// the total number of matches: `{ ids, total }`. Marshalling thousands
+    /// of ids dominates a broad query in the browser; a list view needs a
+    /// page and a count.
+    #[wasm_bindgen(js_name = searchPage)]
+    pub fn search_page(&self, query: &str, limit: usize) -> Result<JsValue, JsValue> {
+        #[derive(Serialize)]
+        struct Page {
+            ids: Vec<String>,
+            total: usize,
+        }
+        if query.is_empty() {
+            return to_js(&Page {
+                ids: Vec::new(),
+                total: 0,
+            });
+        }
+        let mut hits = self.inner.search(query);
+        let total = hits.len();
+        if total > limit {
+            hits.select_nth_unstable_by(limit, |a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
+            hits.truncate(limit);
+        }
+        hits.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
+        to_js(&Page {
+            ids: hits.iter().map(|n| n.id.to_string()).collect(),
+            total,
+        })
+    }
+
     // ── Agents ───────────────────────────────────────────────────────
 
     /// All agents as `[{ id, name, query }]`.

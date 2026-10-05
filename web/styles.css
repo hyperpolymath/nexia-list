@@ -337,6 +337,9 @@ body {
   width: 100%;
   height: 100%;
   transform-origin: 0 0;
+  /* Pan/zoom only change this transform: keep the layer on the compositor
+     so moving it does not repaint every card. */
+  will-change: transform;
 }
 
 .canvas-note {
@@ -774,4 +777,17 @@ body {
   font-size: 0.8rem;
   min-width: 3.5rem;
   text-align: right;
+}
+
+/* Cards are independent boxes: isolate their layout and paint. */
+.canvas-note {
+  contain: layout paint style;
+}
+
+/* Far zoom (level of detail): cards render title-only and lose the costly
+   shadow and padding; text is too small to read there anyway. */
+.canvas.far .canvas-note {
+  box-shadow: none;
+  padding: 0.5rem;
+  min-height: 0;
 }

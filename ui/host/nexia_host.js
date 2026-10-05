@@ -33,6 +33,9 @@ let rev = 0;
 /** id -> evaluated computed fields, valid for the current revision. */
 const fieldCache = new Map();
 
+/** Read-model version counter (see Store.affine `Note.ver`). */
+let nextVer = 0;
+
 /** Convert a core NoteView into Store.affine's `Note` record. */
 function toNote(v) {
   return {
@@ -48,6 +51,7 @@ function toNote(v) {
     created: v.created_at,
     modified: v.modified_at,
     field_count: Object.keys(v.computed ?? {}).length,
+    ver: ++nextVer,
   };
 }
 
@@ -118,6 +122,7 @@ const NO_NOTE = Object.freeze({
   created: "",
   modified: "",
   field_count: 0,
+  ver: 0,
 });
 
 // ── Outcomes ───────────────────────────────────────────────────────────────
@@ -413,7 +418,7 @@ const externs = {
       return [];
     }
   },
-  nx_search: (q) => nb.search(q),
+  nx_search: (q, limit) => nb.searchPage(q, limit),
   nx_agents: () => nb.agents(),
   nx_run_agent: (id) => {
     try {

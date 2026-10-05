@@ -29,7 +29,10 @@ pub struct Note {
   links: [String],
   created: String,
   modified: String,
-  field_count: Int
+  field_count: Int,
+  /// Read-model version of this note: bumps on every change to it (unlike
+  /// `modified`, whose clock has millisecond resolution in WebAssembly).
+  ver: Int
 }
 
 /// A computed field of a note, evaluated against the current notebook.
@@ -76,8 +79,13 @@ pub extern fn nx_has(id: String) -> Bool;
 /// unplaced note).
 pub extern fn nx_note(id: String) -> Note;
 pub extern fn nx_backlinks(id: String) -> [String];
-/// Ids of notes whose title or content contains `query` (case-insensitive).
-pub extern fn nx_search(query: String) -> [String];
+/// The first `limit` matching notes (by title) and the total number of
+/// matches.
+pub struct SearchPage { ids: [String], total: Int }
+
+/// Notes whose title or content contains `query` (case-insensitive): the
+/// first `limit` ids by title, and the total number of matches.
+pub extern fn nx_search(query: String, limit: Int) -> SearchPage;
 pub extern fn nx_agents() -> [Agent];
 pub extern fn nx_run_agent(id: String) -> [String];
 /// Every computed field of note `id`, evaluated (cached per revision).
