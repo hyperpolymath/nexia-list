@@ -15,6 +15,16 @@
   <body>
     <noscript>Nexia-List is a local-first app that runs entirely in your browser and requires JavaScript.</noscript>
     <div id="root" aria-live="polite"></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module">
+      // The TEA host and the Nexia host install the primitives the compiled
+      // AffineScript app calls; importing app.bun.js then runs its `main`
+      // (the Bun-ESM backend invokes `main` on load), mounting on #root.
+      import "./tea_host.js";
+      import "./nexia_host.js";
+      import "./app.bun.js";
+      if ("serviceWorker" in navigator) {
+        addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js").catch(() => {}));
+      }
+    </script>
   </body>
 </html>

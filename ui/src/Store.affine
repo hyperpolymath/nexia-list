@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: MPL-2.0
+//
+// Store.affine — the UI's view of the Rust/WASM notebook core.
+//
+// The core (core/src, compiled to web/wasm) is the single source of truth for
+// notes, links, agents and computed fields. These externs are implemented by
+// ui/host/nexia_host.js, which wraps the wasm-bindgen `WasmNotebook` and keeps
+// a read model (converted note records, per-revision caches) up to date from
+// the deltas the core returns, so a render never re-marshals the notebook.
+//
+// Every mutation returns an `Outcome`; on failure `ok` is false and `error`
+// carries the core's message (the UI shows it, never throws).
+
+module Store;
+
+use prelude::*;
+
+/// A note as the UI sees it. `placed` is false for notes that have no canvas
+/// position yet (x/y are then 0); `w`/`h` are 0 when no size was set.
+pub struct Note {
+  id: String,
+  title: String,
+  content: String,
+  placed: Bool,
+  x: Float,
+  y: Float,
+  w: Float,
+  h: Float,
+  links: [String],
+  created: String,
+  modified: String,
+  field_count: Int
+}
+
+/// A computed field of a note, evaluated against the current notebook.
+pub struct FieldValue { name: String, source: String, ok: Bool, value: String }
+
+/// A persistent saved query.
+pub struct Agent { id: String, name: String, query: String }
+
+/// The result of a core mutation; `id` is the affected/created note or agent.
+pub struct Outcome { ok: Bool, error: String, id: String }
+
+/// What startup found: whether an autosave was restored, whether a corrupt
+/// one was quarantined (kept under a backup key, not deleted), and a
+/// human-readable summary of any repair the core's loader performed.
+pub struct Boot { ok: Bool, error: String, restored: Bool, quarantined: Bool, notice: String }
+
+// ── Startup and persistence ─────────────────────────────────────────────────
+
+/// Load the WASM core and restore the autosaved notebook, then call `done`.
+pub extern fn nx_boot(wasm_url: String, done: Boot -> Unit) -> Unit;
+/// Debounced write of the current notebook to IndexedDB.
+pub extern fn nx_autosave() -> Unit;
+/// Download the notebook as `<name>.nexia.json`.
+pub extern fn nx_save_file() -> Outcome;
+/// Pick a `.nexia.json` file and load it; `done` gets the outcome (an empty
+/// `error` with `ok == false` means the user cancelled).
+pub extern fn nx_open_file(done: Outcome -> Unit) -> Unit;
+pub extern fn nx_export_markdown() -> Outcome;
+pub extern fn nx_export_opml() -> Outcome;
+pub extern fn nx_import_vault(done: Outcome -> Unit) -> Unit;
+/// Replace the notebook with a new empty one.
+pub extern fn nx_reset(name: String) -> Outcome;
+
+// ── Reads (served from the read model) ──────────────────────────────────────
+
+/// Read-model revision; bumps on every successful mutation or load.
+pub extern fn nx_rev() -> Int;
+pub extern fn nx_name() -> String;
+pub extern fn nx_count() -> Int;
+/// All notes, sorted by title (cached per revision).
+pub extern fn nx_notes() -> [Note];
+pub extern fn nx_has(id: String) -> Bool;
+/// The note with `id` (check `nx_has` first; an unknown id yields an empty
+/// unplaced note).
+pub extern fn nx_note(id: String) -> Note;
+pub extern fn nx_backlinks(id: String) -> [String];
+/// Ids of notes whose title or content contains `query` (case-insensitive).
+pub extern fn nx_search(query: String) -> [String];
+pub extern fn nx_agents() -> [Agent];
+pub extern fn nx_run_agent(id: String) -> [String];
+/// Every computed field of note `id`, evaluated (cached per revision).
+pub extern fn nx_fields(id: String) -> [FieldValue];
+/// Evaluate `source` as a formula of note `id` without storing it.
+pub extern fn nx_preview(id: String, source: String) -> FieldValue;
+
+// ── Mutations ───────────────────────────────────────────────────────────────
+
+pub extern fn nx_create(title: String, placed: Bool, x: Float, y: Float) -> Outcome;
+pub extern fn nx_set_title(id: String, title: String) -> Outcome;
+/// Set content; `[[Title]]` references create links (the core resolves them).
+pub extern fn nx_set_content(id: String, content: String) -> Outcome;
+pub extern fn nx_move(id: String, x: Float, y: Float) -> Outcome;
+pub extern fn nx_delete(id: String) -> Outcome;
+pub extern fn nx_link(from: String, to: String) -> Outcome;
+pub extern fn nx_unlink(from: String, to: String) -> Outcome;
+pub extern fn nx_set_field(id: String, name: String, source: String) -> Outcome;
+pub extern fn nx_remove_field(id: String, name: String) -> Outcome;
+pub extern fn nx_add_agent(name: String, query: String) -> Outcome;
+pub extern fn nx_remove_agent(id: String) -> Outcome;
+
+// ── Small string helpers the views need ─────────────────────────────────────
+
+/// Case-insensitive substring test.
+pub extern fn nx_contains_ci(haystack: String, needle: String) -> Bool;
+/// The first `n` characters of `s` (by code point).
+pub extern fn nx_prefix(s: String, n: Int) -> String;
+pub extern fn nx_char_count(s: String) -> Int;
+pub extern fn nx_trim(s: String) -> String;
+/// A float rendered for CSS/SVG (no exponent, at most 3 decimals).
+pub extern fn nx_num(x: Float) -> String;

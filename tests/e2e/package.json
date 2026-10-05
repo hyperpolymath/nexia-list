@@ -1,0 +1,13 @@
+{
+  "name": "nexia-list-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser end-to-end tests and canvas benchmarks for the Nexia-List web app (web/dist).",
+  "scripts": {
+    "test": "bun test --timeout 120000 app.test.js",
+    "bench": "bun test --timeout 600000 perf.test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

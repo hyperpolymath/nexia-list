@@ -1,12 +1,13 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # Product CI (UI/wasm): compile-verify changed AffineScript sources, build the
-# Rust wasm core, and run the live UI/contract test suites.
+# Rust wasm core and the AffineScript UI, and run the unit, contract and
+# browser end-to-end suites.
 #
-# The UI was ported from ReScript to AffineScript (PR #76). The AffineScript
-# compiler verifies .affine files (`affinescript check`) but ships no web UI
-# emitter yet, so there is deliberately no UI bundling here — see
-# docs/decisions/ui-web-bundle-deferred-2026-09-22.adoc.
+# The UI (ui/src/*.affine) is AffineScript on the affinescript-tea runtime,
+# compiled with the compiler's Bun-ESM backend at the pinned COMPILER_REF
+# (the same commit scripts/fetch-affinescript.sh builds) — see
+# docs/decisions/ui-affinescript-tea-2026-10-05.adoc.
 name: ui-ci
 
 on:
@@ -32,7 +33,7 @@ concurrency:
 env:
   LEGACY_BLOCKING: "false"
   COMPILER_REPO: hyperpolymath/affinescript
-  COMPILER_REF: d2875a552f1d389b4a60c4adfdc02ae53e36aca3
+  COMPILER_REF: c239711f55a6a3b9120333c51bb7d38bd794e062
 
 jobs:
   affinescript-verify:
@@ -127,7 +128,13 @@ jobs:
             [ -z "$f" ] && continue
             abs="$GITHUB_WORKSPACE/$f"
             echo "::group::check $f"
-            if opam exec -- dune exec affinescript -- check "$abs" 2>&1; then
+            # Check from the file's own directory so sibling modules
+            # (`use Store::...`) resolve; the TEA runtime and stdlib come
+            # from the pinned compiler checkout.
+            if (cd "$(dirname "$abs")" && \
+                AFFINESCRIPT_STDLIB="$GITHUB_WORKSPACE/.affinescript-compiler/stdlib" \
+                AFFINESCRIPT_PATH="$GITHUB_WORKSPACE/.affinescript-compiler/affinescript-tea/src" \
+                "$GITHUB_WORKSPACE/.affinescript-compiler/_build/default/bin/main.exe" check "$(basename "$abs")") 2>&1; then
               echo "✅ $f"
             elif is_added "$f"; then
               echo "::error file=$f::AffineScript check failed (ADDED file — blocking)"
@@ -187,8 +194,26 @@ jobs:
       - name: Build wasm core
         run: bun run build:wasm
 
-      - name: UI + contract tests
+      - name: Set up OCaml (AffineScript compiler)
+        uses: ocaml/setup-ocaml@93303b622b2522e4411e295f9e77411a24912ac7 # v3
+        with:
+          ocaml-compiler: "5.1"
+
+      - name: Fetch and build the pinned AffineScript compiler
+        run: opam exec -- bash scripts/fetch-affinescript.sh
+
+      - name: Build the AffineScript UI (web/dist)
+        run: bun run build:ui
+
+      - name: UI unit + contract tests
         run: bun run test:ui
+
+      - name: Browser end-to-end tests (headless Chromium)
+        working-directory: tests/e2e
+        run: |
+          bun install --frozen-lockfile
+          bunx --no-install --bun playwright install --with-deps chromium
+          bun test --timeout 120000 app.test.js
 
       - name: Lint
         run: bun run lint

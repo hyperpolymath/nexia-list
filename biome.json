@@ -4,6 +4,8 @@
     "includes": [
       "scripts/**/*.js",
       "ui/tests/**/*.js",
+      "tests/e2e/*.js",
+      "ui/host/**/*.js",
       "web/**/*.js",
       "!web/dist/**",
       "!web/wasm/**"

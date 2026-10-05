@@ -93,3 +93,8 @@ deps/
 .cache/
 build/
 dist/
+
+# AffineScript UI build
+/web/dist/
+/.affinescript/
+/tests/e2e/node_modules/

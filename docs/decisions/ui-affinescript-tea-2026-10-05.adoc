@@ -1,0 +1,50 @@
+= Decision: the web UI is AffineScript on affinescript-tea, built with Bun-ESM
+:revdate: 2026-10-05
+:status: Accepted
+:supersedes: ui-web-bundle-deferred-2026-09-22.adoc
+
+== Context
+
+The 2026-09-22 decision deferred UI bundling until AffineScript could emit a
+web UI. Two facts have since changed:
+
+* The `ui/src/*.affine` files from the #76 port never parsed under any
+  AffineScript compiler. They were a mechanical text rewrite of the ReScript
+  sources (`struct noteId { string`, `@react.component`, JSX), and CI hid
+  this because modified legacy `.affine` files were advisory only. `main` had
+  no runnable UI.
+* The compiler's Bun-ESM backend produces browser-importable ES modules. With
+  fixes landed for that work (hyperpolymath/affinescript #777) and a TEA
+  runtime written in AffineScript (`affinescript-tea`, #778), a real
+  AffineScript UI is possible. ReScript is banned estate-wide.
+
+== Decision
+
+1. The UI is rewritten from scratch in AffineScript (`ui/src/`):
+   `Store.affine` (the core interface), `Geometry.affine` (pure canvas
+   geometry) and `App.affine` (model, update, view, subscriptions). It runs on
+   `affinescript-tea`: keyed virtual DOM, commands, subscriptions.
+2. The Rust/WASM core stays the single source of truth.
+   `ui/host/nexia_host.js` is a host carve-out that implements `Store.affine`'s
+   externs over `WasmNotebook`. It keeps an incrementally updated read model,
+   so rendering a 10k-note notebook never re-marshals it, and it handles
+   IndexedDB autosave, quarantine of a corrupt autosave, and file I/O. With
+   `affinescript-tea`'s `tea_host.js` it is the only JavaScript in the UI. It
+   makes no UI decisions.
+3. `scripts/build-ui.sh` builds `web/dist/`. The compiler comes from
+   `$AFFINESCRIPT_HOME`, by default `./.affinescript`, which
+   `scripts/fetch-affinescript.sh` builds at a pinned commit. There is no
+   dependency on a sibling checkout.
+4. The UI is tested in a real browser: `tests/e2e` (Playwright, headless
+   Chromium) runs in `ui-ci`, alongside AffineScript unit tests of the pure
+   geometry (`ui/tests/geometry.test.js`).
+
+== Consequences
+
+* `bun run build` builds the WASM core and the UI. `bun run serve` serves
+  `web/dist`. `bun run test:e2e` runs the browser suite.
+* The compiler pin must be bumped to the merge commit once the affinescript
+  PRs land (`COMPILER_REF` in `ui-ci.yml` and `AFFINESCRIPT_REF` in
+  `scripts/fetch-affinescript.sh` move together).
+* Pages import `app.bun.js` and never call `main()`. The Bun-ESM backend runs
+  `main` on load, so a second call would mount a second app instance.

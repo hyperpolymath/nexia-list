@@ -1,7 +1,7 @@
 = Decision: UI web bundling deferred until AffineScript emits a web UI target
 :author: Arena agent (fix PR)
 :revdate: 2026-09-22
-:status: Accepted
+:status: Superseded by ui-affinescript-tea-2026-10-05.adoc
 
 == Context
 
