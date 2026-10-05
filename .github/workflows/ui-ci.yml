@@ -73,7 +73,7 @@ jobs:
             { echo 'added<<EOF'; echo "$ADDED"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Read the compiler pin (single source: scripts/fetch-affinescript.sh)
+      - name: "Read the compiler pin (single source: scripts/fetch-affinescript.sh)"
         id: pin
         if: steps.changed.outputs.any == 'true'
         run: |
