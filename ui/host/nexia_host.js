@@ -14,6 +14,8 @@ import init, { WasmNotebook } from "./wasm/nexia_core.js";
 
 const AUTOSAVE_KEY = "nexia.autosave";
 const AUTOSAVE_DELAY_MS = 300;
+/** Longest a pending change waits for a write while edits keep coming. */
+const AUTOSAVE_MAX_WAIT_MS = 1000;
 const IDB_NAME = "nexia";
 const IDB_STORE = "kv";
 
@@ -210,6 +212,7 @@ let persistence = true;
 async function flush() {
   clearTimeout(timer);
   timer = null;
+  pendingSince = 0;
   if (!nb || !persistence) return;
   const saving = rev;
   try {
@@ -220,10 +223,22 @@ async function flush() {
   }
 }
 
-/** Debounce an autosave after a change. */
+/** When the oldest unsaved change was made (0 = nothing pending). */
+let pendingSince = 0;
+
+/**
+ * Debounce an autosave after a change, but never beyond
+ * AUTOSAVE_MAX_WAIT_MS from the first unsaved change: continuous typing
+ * still gets written while the page is active. (Page-exit handlers below
+ * are a best-effort extra; IndexedDB does not guarantee a transaction
+ * started during unload completes.)
+ */
 function schedule() {
+  const now = Date.now();
+  if (pendingSince === 0) pendingSince = now;
+  const left = Math.max(0, pendingSince + AUTOSAVE_MAX_WAIT_MS - now);
   clearTimeout(timer);
-  timer = setTimeout(flush, AUTOSAVE_DELAY_MS);
+  timer = setTimeout(flush, Math.min(AUTOSAVE_DELAY_MS, left));
 }
 
 // A pending write must not be lost when the tab is hidden or closed.

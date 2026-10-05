@@ -66,17 +66,14 @@ function buildNotebook() {
       nb.setComputedField(note.id, "words", "(count (words (content self)))");
     ids.push(note.id);
   }
-  let made = 0;
-  while (made < LINKS) {
+  // The core accepts a duplicate link silently, so count distinct pairs.
+  const linked = new Set();
+  while (linked.size < LINKS) {
     const from = ids[Math.floor(rand() * NOTES)];
     const to = ids[Math.floor(rand() * NOTES)];
-    if (from === to) continue;
-    try {
-      nb.link(from, to);
-      made++;
-    } catch {
-      // Already linked: draw again.
-    }
+    if (from === to || linked.has(`${from}>${to}`)) continue;
+    nb.link(from, to);
+    linked.add(`${from}>${to}`);
   }
   return nb.to_json();
 }
@@ -141,6 +138,9 @@ test("cold start restores the 10k-note notebook", async () => {
   console.log(
     `cold start with ${NOTES} notes: ${ms.toFixed(0)} ms to interactive (WASM load + restore: ${coreMs} ms)`,
   );
+  // Same budget as the brief's empty-profile cold start, overridable for a
+  // slower machine.
+  expect(ms).toBeLessThan(Number(process.env.COLD_START_BUDGET_MS ?? 1000));
   expect(await page.textContent(".note-count")).toBe(`${NOTES} notes`);
   expect(await page.textContent(".list-more")).toContain("search to narrow");
 });

@@ -113,13 +113,19 @@ struct Stats {
 
 /// Run `op` `iters` times and summarise the per-call wall time.
 fn measure(iters: usize, mut op: impl FnMut(usize)) -> Stats {
-    let mut samples: Vec<Duration> = (0..iters)
-        .map(|i| {
-            let start = Instant::now();
-            op(i);
-            start.elapsed()
-        })
-        .collect();
+    stats_of(
+        (0..iters)
+            .map(|i| {
+                let start = Instant::now();
+                op(i);
+                start.elapsed()
+            })
+            .collect(),
+    )
+}
+
+/// Summarise wall-time samples (p50 / p95 / max).
+fn stats_of(mut samples: Vec<Duration>) -> Stats {
     samples.sort();
     let at = |q: f64| samples[((samples.len() - 1) as f64 * q).round() as usize];
     Stats {
@@ -191,13 +197,19 @@ fn main() {
         }),
         true,
     );
+    // Each sample edits a note (untimed), then times the search that must
+    // rebuild the lowercase cache.
+    let mut after_edit = Vec::new();
+    for i in 0..iters.min(50) {
+        let id = ids[(i * 31) % NOTES];
+        nb.set_content(&id, format!("edited {i}"));
+        let start = Instant::now();
+        black_box(nb.search(queries[i % queries.len()]));
+        after_edit.push(start.elapsed());
+    }
     row(
         "search right after an edit (cache)",
-        measure(iters.min(50), |i| {
-            let id = ids[(i * 31) % NOTES];
-            nb.set_content(&id, format!("edited {i}"));
-            black_box(nb.search(queries[i % queries.len()]));
-        }),
+        stats_of(after_edit),
         false,
     );
     row(

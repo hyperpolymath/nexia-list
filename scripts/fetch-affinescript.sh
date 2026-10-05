@@ -11,7 +11,7 @@ set -euo pipefail
 # hyperpolymath/affinescript: affinescript-tea, affinescript-router and the
 # compiler fixes the UI needs (PRs #777/#778). Bump to the merge commit on main once they land.
 AFFINESCRIPT_REPO="https://github.com/hyperpolymath/affinescript.git"
-AFFINESCRIPT_REF="f21fdda8949ed2c29a50835be8ebbdecaab8e763"
+AFFINESCRIPT_REF="c3f7cae1ea9f0dd15eb5e079729ba211c0a4b729"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 dest="${AFFINESCRIPT_HOME:-$root/.affinescript}"
