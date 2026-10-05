@@ -45,16 +45,40 @@ impl Default for JsonStorage {
     }
 }
 
+/// Persist the directory entry created by a rename (Unix: fsync the parent
+/// directory). Elsewhere directories cannot be opened for syncing; the file
+/// itself was already synced.
+#[cfg(unix)]
+fn sync_parent_dir(path: &Path) -> std::io::Result<()> {
+    match path.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => std::fs::File::open(dir)?.sync_all(),
+        _ => std::fs::File::open(".")?.sync_all(),
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_parent_dir(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
 impl Storage for JsonStorage {
     fn save(&self, notebook: &Notebook, path: &Path) -> Result<(), StorageError> {
+        use std::io::Write;
         let json = serde_json::to_string_pretty(notebook)?;
-        // Write a sibling temp file and rename it over the target: a crash
-        // mid-write leaves the previous notebook intact, never a truncated one.
+        // Write a sibling temp file, flush it to disk, and rename it over the
+        // target: a crash mid-write leaves the previous notebook intact, never
+        // a truncated one. Syncing the file before the rename (and, on Unix,
+        // the directory after it) makes the new version durable across power
+        // loss, not just process death.
         let mut tmp_name = path.file_name().unwrap_or_default().to_os_string();
         tmp_name.push(".tmp");
         let tmp = path.with_file_name(tmp_name);
-        std::fs::write(&tmp, json)?;
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
         std::fs::rename(&tmp, path)?;
+        sync_parent_dir(path)?;
         Ok(())
     }
 

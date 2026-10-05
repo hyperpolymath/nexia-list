@@ -129,11 +129,12 @@ const NO_NOTE = Object.freeze({
 // ── Outcomes ───────────────────────────────────────────────────────────────
 
 /** A successful outcome. */
-const ok = (id = "") => ({ ok: true, error: "", id });
+const ok = (id = "", notice = "") => ({ ok: true, error: "", notice, id });
 /** A failed outcome carrying the core's (or browser's) message. */
 const fail = (e) => ({
   ok: false,
   error: e instanceof Error ? e.message : String(e),
+  notice: "",
   id: "",
 });
 
@@ -352,12 +353,12 @@ const externs = {
   nx_open_file: (done) => {
     pick(".json,application/json")
       .then(async ([file]) => {
-        if (!file) return done({ ok: false, error: "", id: "" });
+        if (!file) return done({ ok: false, error: "", notice: "", id: "" });
         const next = WasmNotebook.from_json(await file.text());
         nb = next;
         reloadAll();
         schedule();
-        done({ ok: true, error: describeRepairs(nb.loadReport()), id: "" });
+        done(ok("", describeRepairs(nb.loadReport())));
       })
       .catch((e) => done(fail(e)));
   },
@@ -385,14 +386,15 @@ const externs = {
     pick(".md,text/markdown", { multiple: true, directory: true })
       .then(async (chosen) => {
         const md = chosen.filter((f) => f.name.endsWith(".md"));
-        if (md.length === 0) return done({ ok: false, error: "", id: "" });
+        if (md.length === 0)
+          return done({ ok: false, error: "", notice: "", id: "" });
         const files = await Promise.all(
           md.map(async (f) => ({ name: f.name, content: await f.text() })),
         );
         nb.import_markdown_vault(files);
         reloadAll();
         schedule();
-        done({ ok: true, error: `Imported ${files.length} note(s).`, id: "" });
+        done(ok("", `Imported ${files.length} note(s).`));
       })
       .catch((e) => done(fail(e)));
   },
@@ -420,8 +422,20 @@ const externs = {
       return [];
     }
   },
-  nx_search: (q, limit) => nb.searchPage(q, limit),
-  nx_agents: () => nb.agents(),
+  nx_search: (q, limit) => {
+    try {
+      return nb.searchPage(q, limit);
+    } catch {
+      return { ids: [], total: 0 };
+    }
+  },
+  nx_agents: () => {
+    try {
+      return nb.agents();
+    } catch {
+      return [];
+    }
+  },
   nx_run_agent: (id) => {
     try {
       return nb.run_agent(id);

@@ -44,7 +44,7 @@ web UI. Two facts have since changed:
 * `bun run build` builds the WASM core and the UI. `bun run serve` serves
   `web/dist`. `bun run test:e2e` runs the browser suite.
 * The compiler pin must be bumped to the merge commit once the affinescript
-  PRs land (`COMPILER_REF` in `ui-ci.yml` and `AFFINESCRIPT_REF` in
-  `scripts/fetch-affinescript.sh` move together).
+  PRs land. It lives only in `AFFINESCRIPT_REF` in
+  `scripts/fetch-affinescript.sh`; `ui-ci` reads it from there.
 * Pages import `app.bun.js` and never call `main()`. The Bun-ESM backend runs
   `main` on load, so a second call would mount a second app instance.

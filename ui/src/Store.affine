@@ -41,8 +41,10 @@ pub struct FieldValue { name: String, source: String, ok: Bool, value: String }
 /// A persistent saved query.
 pub struct Agent { id: String, name: String, query: String }
 
-/// The result of a core mutation; `id` is the affected/created note or agent.
-pub struct Outcome { ok: Bool, error: String, id: String }
+/// The result of a core mutation or file operation: `error` is the failure
+/// message (empty on success), `notice` an optional success summary (e.g.
+/// what loading repaired), `id` the affected/created note or agent.
+pub struct Outcome { ok: Bool, error: String, notice: String, id: String }
 
 /// What startup found: whether an autosave was restored, whether a corrupt
 /// one was quarantined (kept under a backup key, not deleted), and a
@@ -57,8 +59,9 @@ pub extern fn nx_boot(wasm_url: String, done: Boot -> Unit) -> Unit;
 pub extern fn nx_autosave() -> Unit;
 /// Download the notebook as `<name>.nexia.json`.
 pub extern fn nx_save_file() -> Outcome;
-/// Pick a `.nexia.json` file and load it; `done` gets the outcome (an empty
-/// `error` with `ok == false` means the user cancelled).
+/// Pick a `.nexia.json` file and load it; `done` gets the outcome (`ok ==
+/// false` with an empty `error` means the user cancelled; on success
+/// `notice` summarises any repair).
 pub extern fn nx_open_file(done: Outcome -> Unit) -> Unit;
 pub extern fn nx_export_markdown() -> Outcome;
 pub extern fn nx_export_opml() -> Outcome;

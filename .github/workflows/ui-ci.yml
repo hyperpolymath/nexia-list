@@ -5,8 +5,8 @@
 # browser end-to-end suites.
 #
 # The UI (ui/src/*.affine) is AffineScript on the affinescript-tea runtime,
-# compiled with the compiler's Bun-ESM backend at the pinned COMPILER_REF
-# (the same commit scripts/fetch-affinescript.sh builds) — see
+# compiled with the compiler's Bun-ESM backend at the commit pinned in
+# scripts/fetch-affinescript.sh (the one place the pin lives) — see
 # docs/decisions/ui-affinescript-tea-2026-10-05.adoc.
 name: ui-ci
 
@@ -33,7 +33,6 @@ concurrency:
 env:
   LEGACY_BLOCKING: "false"
   COMPILER_REPO: hyperpolymath/affinescript
-  COMPILER_REF: f3368d98a84768fc63eaf9b059d2040770a8b5c6
 
 jobs:
   affinescript-verify:
@@ -74,13 +73,24 @@ jobs:
             { echo 'added<<EOF'; echo "$ADDED"; echo 'EOF'; } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Read the compiler pin (single source: scripts/fetch-affinescript.sh)
+        id: pin
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          ref="$(sed -n 's/^AFFINESCRIPT_REF="\([0-9a-f]\{40\}\)"$/\1/p' scripts/fetch-affinescript.sh)"
+          if [[ ! "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::AFFINESCRIPT_REF in scripts/fetch-affinescript.sh is not a 40-hex SHA"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       - name: Checkout AffineScript compiler
         if: steps.changed.outputs.any == 'true'
         continue-on-error: true
         uses: actions/checkout@v7.0.1
         with:
           repository: ${{ env.COMPILER_REPO }}
-          ref: ${{ env.COMPILER_REF }}
+          ref: ${{ steps.pin.outputs.ref }}
           path: .affinescript-compiler
 
       - name: Set up OCaml

@@ -339,7 +339,7 @@ pub fn step(msg: Msg, m: Model) -> (Model, Cmd<Msg>) {
     },
     Msg::OpenNotebook => (m, run_cmd(fn(dispatch) => nx_open_file(fn(o) => dispatch(Msg::Opened(o))))),
     Msg::Opened(o) =>
-      if o.ok { let r = reloaded(m); (Model #{ ..r, notice: o.error }, autosave()) }
+      if o.ok { let r = reloaded(m); (Model #{ ..r, notice: o.notice }, autosave()) }
       else { if o.error == "" { (m, none()) } else { (Model #{ ..m, error: o.error }, none()) } },
     Msg::ExportMarkdown => {
       let o = nx_export_markdown();

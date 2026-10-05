@@ -64,7 +64,9 @@ describe("cold start", () => {
     console.log(
       `cold start: ${ms.toFixed(0)} ms to interactive (WASM core + restore: ${coreMs} ms)`,
     );
-    expect(ms).toBeLessThan(1000);
+    // The brief's budget is 1 s; COLD_START_BUDGET_MS lets a slower machine
+    // run the suite without changing what is asserted by default.
+    expect(ms).toBeLessThan(Number(process.env.COLD_START_BUDGET_MS ?? 1000));
     expect(await page.textContent(".sidebar h2")).toBe("Untitled Notebook");
     expect(errors).toEqual([]);
     await context.close();
