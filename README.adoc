@@ -268,7 +268,7 @@ Contributions welcome! Please read our link:.github/CONTRIBUTING.md[Contributing
 
 . **Local-first always** - Never require network for core functionality
 . **Web-first** - The browser is the primary target; shells are additive
-. **Type safety** - Leverage ReScript's type system fully
+. **Type safety** - Leverage AffineScript's type system fully
 . **Performance** - Keep UI responsive with 10,000+ notes
 . **Simplicity** - Resist feature creep, do fewer things well
 
