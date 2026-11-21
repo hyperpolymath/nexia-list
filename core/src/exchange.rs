@@ -229,6 +229,138 @@ fn xml_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// Render the notebook as one deterministic AsciiDoc document, so that a
+/// reader with no nexia-list (a person in a forge, or a coding agent) can read
+/// a committed notebook as text. The same notebook always gives the same
+/// bytes: notes are ordered by group, then title, then id, and nothing
+/// time-dependent is written.
+///
+/// With `group_by`, notes are put under one `==` section per value of that
+/// attribute; notes that lack it come last. Each note carries an `[[n-<id>]]`
+/// anchor, and links are cross-references to those anchors, so duplicate
+/// titles stay unambiguous. Note content goes into a literal block and is
+/// never interpreted as markup.
+///
+/// This is a one-way view. Canvas size, agents and timestamps are left out.
+pub fn to_asciidoc(notebook: &Notebook, group_by: Option<&str>) -> String {
+    let group_of = |n: &Note| -> Option<String> {
+        group_by
+            .and_then(|key| n.attributes.get(key))
+            .map(attribute_text)
+    };
+    let mut notes: Vec<(Option<String>, &Note)> =
+        notebook.all_notes().map(|n| (group_of(n), n)).collect();
+    notes.sort_by(|(ga, a), (gb, b)| {
+        (ga.is_none(), ga, &a.title, a.id).cmp(&(gb.is_none(), gb, &b.title, b.id))
+    });
+
+    let xref = |id: &NoteId| -> String {
+        let title = notebook
+            .get_note(id)
+            .map(|n| one_line(&n.title))
+            .unwrap_or_else(|| "Unknown".to_string());
+        format!("<<n-{id},{}>>", title.replace(">>", "> >"))
+    };
+    let xrefs = |ids: &[NoteId]| -> String {
+        let mut ids: Vec<&NoteId> = ids.iter().collect();
+        ids.sort_by_key(|id| (notebook.get_note(id).map(|n| n.title.as_str()), **id));
+        ids.into_iter().map(xref).collect::<Vec<_>>().join("; ")
+    };
+
+    let mut out = String::new();
+    out.push_str("// Generated from a nexia-list notebook. Do not edit: change the notebook and regenerate.\n");
+    out.push_str(&format!("= {}\n", one_line(&notebook.name)));
+    out.push_str(&format!(
+        ":nexia-schema-version: {}\n",
+        notebook.schema_version()
+    ));
+    out.push_str(&format!(":nexia-notes: {}\n", notes.len()));
+    if let Some(key) = group_by {
+        out.push_str(&format!(":nexia-grouped-by: {}\n", one_line(key)));
+    }
+
+    let mut current: Option<&Option<String>> = None;
+    for (group, note) in &notes {
+        if let Some(key) = group_by {
+            if current != Some(group) {
+                current = Some(group);
+                match group {
+                    Some(value) => out.push_str(&format!("\n== {}: {}\n", one_line(key), value)),
+                    None => out.push_str(&format!("\n== no {}\n", one_line(key))),
+                }
+            }
+        }
+        out.push_str(&format!("\n[[n-{}]]\n", note.id));
+        let level = if group_by.is_some() { "===" } else { "==" };
+        out.push_str(&format!("{level} {}\n\n", one_line(&note.title)));
+
+        let mut keys: Vec<&String> = note.attributes.keys().collect();
+        keys.sort();
+        for key in keys {
+            out.push_str(&format!(
+                "attr {}:: {}\n",
+                one_line(key),
+                attribute_text(&note.attributes[key])
+            ));
+        }
+        for (name, formula) in &note.computed {
+            out.push_str(&format!(
+                "computed {}:: {}\n",
+                one_line(name),
+                one_line(formula)
+            ));
+        }
+        if let Some(p) = note.position {
+            out.push_str(&format!("position:: {}, {}\n", p.x, p.y));
+        }
+        if let Some(prototype) = &note.prototype {
+            out.push_str(&format!("prototype:: {}\n", xref(prototype)));
+        }
+        if !note.links.is_empty() {
+            out.push_str(&format!("links:: {}\n", xrefs(&note.links)));
+        }
+        let backlinks = notebook.get_backlinks(&note.id);
+        if !backlinks.is_empty() {
+            out.push_str(&format!("linked-from:: {}\n", xrefs(&backlinks)));
+        }
+
+        if !note.content.is_empty() {
+            // A fence longer than any run of dots that starts a content line,
+            // so the content can never close its own block.
+            let longest = note
+                .content
+                .lines()
+                .map(|l| l.chars().take_while(|c| *c == '.').count())
+                .max()
+                .unwrap_or(0);
+            let fence = ".".repeat(longest.max(3) + 1);
+            out.push_str(&format!(
+                "\n{fence}\n{}\n{fence}\n",
+                note.content.trim_end_matches('\n')
+            ));
+        }
+    }
+    out
+}
+
+/// Text on one line: an empty value reads `Untitled`, line breaks become spaces.
+fn one_line(s: &str) -> String {
+    let flat = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.is_empty() {
+        "Untitled".to_string()
+    } else {
+        flat
+    }
+}
+
+/// An attribute value as text: a string as itself, anything else as JSON.
+fn attribute_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => one_line(s),
+        other => other.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -52,6 +52,23 @@ check:
     bun run lint
     cargo fmt --check
     cargo clippy --all-targets --features wasm -- -D warnings
+    just maps check
+
+# Write (or with mode=check, verify) the AsciiDoc view beside every
+# docs/maps/*.nexia.json. See docs/design/notebooks-in-repositories.adoc.
+maps mode="write":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    for f in docs/maps/*.nexia.json; do
+        out="${f%.json}.adoc"
+        if [ "{{mode}}" = "check" ]; then
+            cargo run -q -p nexia-core --bin nexia-export -- "$f" --group-by kind --check "$out"
+        else
+            cargo run -q -p nexia-core --bin nexia-export -- "$f" --group-by kind > "$out.tmp"
+            mv "$out.tmp" "$out"
+        fi
+    done
 
 # Publish docs/wikis/*.md to the GitHub wiki (docs/wikis/ is the source of truth)
 #   just wiki-sync dry    # preview what would change, push nothing

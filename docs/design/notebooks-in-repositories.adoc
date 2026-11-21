@@ -1,0 +1,68 @@
+== Notebooks in repositories
+
+Status: convention, first version (2026-11-21).
+
+A nexia-list notebook can be the map of a project: what each part is, what
+connects to what, what is planned. This page says where such a notebook sits
+in a repository and how a reader with no nexia-list, including a coding agent,
+reads it.
+
+=== The convention
+
+. A committed notebook is `docs/maps/<name>.nexia.json`.
+. Its text view is `docs/maps/<name>.nexia.adoc`, in the same directory and
+  the same commit.
+. The view is generated. Nobody edits it by hand. The notebook is the source.
+. A map notebook gives every note the attribute `kind`. The view groups notes
+  by that attribute.
+. The repository's agent instruction file (`CLAUDE.md` or `AGENTS.md`) carries
+  one pointer line:
++
+....
+Project maps: read docs/maps/*.nexia.adoc. They are generated from the nexia-list notebooks beside them; change the notebook, never the .adoc.
+....
+
+=== How to make and check the view
+
+In this repository:
+
+[source,sh]
+----
+just maps          # write the view beside every docs/maps/*.nexia.json
+just maps check    # exit 1 when a committed view is out of date
+----
+
+`just check` runs `just maps check`.
+
+In another repository, call the command from a nexia-list checkout:
+
+[source,sh]
+----
+cargo run -q -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind > docs/maps/NAME.nexia.adoc
+cargo run -q -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind --check docs/maps/NAME.nexia.adoc
+----
+
+Exit codes: `0` current, `1` out of date, `2` the notebook cannot be read or
+needs repair on load.
+
+=== What the view holds
+
+* One section per note, with the anchor `n-<note id>`.
+* Attributes as `attr <key>:: <value>`, computed fields as
+  `computed <name>:: <formula>`, the canvas position, the prototype.
+* `links::` and `linked-from::` as cross-references to anchors, so two notes
+  with the same title stay distinct.
+* The note content in a literal block.
+
+The order is fixed: group, then title, then id. The same notebook always
+gives the same bytes.
+
+=== Limits
+
+* The view is one-way. A reader cannot change the notebook through it.
+* Links have no type. A link says "related", and the reason is in the note
+  text. Typed links are planned as a later schema version.
+* Canvas size, saved agents and timestamps are left out.
+* The notebook file itself is written as pretty-printed JSON. It is not in the
+  JCS form that the estate JSON policy asks for.
+* No tool writes the pointer line into other repositories.

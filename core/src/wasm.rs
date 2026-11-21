@@ -374,6 +374,12 @@ impl WasmNotebook {
         to_js(&files)
     }
 
+    /// Export the notebook as one deterministic AsciiDoc document, grouped by
+    /// the attribute `group_by` when given.
+    pub fn export_asciidoc(&self, group_by: Option<String>) -> String {
+        crate::exchange::to_asciidoc(&self.inner, group_by.as_deref())
+    }
+
     /// Export the notebook as an OPML 2.0 outline.
     pub fn export_opml(&self) -> String {
         crate::exchange::to_opml(&self.inner)
