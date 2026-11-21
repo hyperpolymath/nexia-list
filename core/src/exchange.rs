@@ -351,10 +351,7 @@ fn literal_block(content: &str) -> String {
         .trim_end_matches('\n')
         .lines()
         .map(|l| {
-            let directive = ["include::", "ifdef::", "ifndef::", "ifeval::", "endif::"]
-                .iter()
-                .any(|d| l.starts_with(d));
-            if directive && l.trim_end().ends_with(']') {
+            if is_directive(l) {
                 format!("\\{l}")
             } else {
                 l.to_string()
@@ -366,6 +363,26 @@ fn literal_block(content: &str) -> String {
         "\n[subs=\"-callouts\"]\n{fence}\n{}\n{fence}\n",
         body.join("\n")
     )
+}
+
+/// True when Asciidoctor reads the line as a preprocessor directive. This
+/// follows its `IncludeDirectiveRx` and `ConditionalDirectiveRx`: the line
+/// ends `]`, and the target before the first `[` has no space at either
+/// end (include, not empty) or no space at all (conditionals).
+fn is_directive(line: &str) -> bool {
+    let line = line.trim_end();
+    if !line.ends_with(']') {
+        return false;
+    }
+    let target = |rest: &'_ str| rest.split('[').next().unwrap_or("").to_string();
+    if let Some(rest) = line.strip_prefix("include::") {
+        let t = target(rest);
+        return !t.is_empty() && t.trim() == t;
+    }
+    ["ifdef::", "ifndef::", "ifeval::", "endif::"]
+        .iter()
+        .filter_map(|d| line.strip_prefix(d))
+        .any(|rest| !target(rest).contains(char::is_whitespace))
 }
 
 /// Text on one line: an empty value reads `Untitled`, line breaks become spaces.
@@ -407,7 +424,7 @@ mod tests {
         let a = nb.create_note("Vec<Vec<Vec<T>>> parsing");
         let b = nb.create_note("Beta");
         nb.get_note_mut(&b).unwrap().content =
-            "ifdef::x[]\nkept <1>\nendif::[]\ninclude::secret.adoc[]\ninclude:: not a directive"
+            "ifdef::x[]\nkept <1>\nendif::[]\ninclude::secret.adoc[]\ninclude:: not a directive[]\nifdef::a b[]"
                 .into();
         nb.link_notes(b, a).unwrap();
         let view = to_asciidoc(&nb, None);
@@ -415,7 +432,7 @@ mod tests {
             "links:: <<n-{a},Vec<Vec<Vec<T&#62;&#62;&#62; parsing>>\n"
         )));
         assert!(view.contains(
-            "[subs=\"-callouts\"]\n....\n\\ifdef::x[]\nkept <1>\n\\endif::[]\n\\include::secret.adoc[]\ninclude:: not a directive\n....\n"
+            "[subs=\"-callouts\"]\n....\n\\ifdef::x[]\nkept <1>\n\\endif::[]\n\\include::secret.adoc[]\ninclude:: not a directive[]\nifdef::a b[]\n....\n"
         ));
     }
 
