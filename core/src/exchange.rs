@@ -327,42 +327,45 @@ pub fn to_asciidoc(notebook: &Notebook, group_by: Option<&str>) -> String {
         }
 
         if !note.content.is_empty() {
-            // A fence longer than any run of dots that starts a content line,
-            // so the content can never close its own block.
-            let longest = note
-                .content
-                .lines()
-                .map(|l| l.chars().take_while(|c| *c == '.').count())
-                .max()
-                .unwrap_or(0);
-            let fence = ".".repeat(longest.max(3) + 1);
-            // The preprocessor runs inside a literal block too. A leading
-            // backslash makes it print a directive line as text.
-            // snip: a content line that already starts `\include::` loses
-            // that backslash when rendered; the raw view still shows it.
-            let body: Vec<String> = note
-                .content
-                .trim_end_matches('\n')
-                .lines()
-                .map(|l| {
-                    let directive = ["include::", "ifdef::", "ifndef::", "ifeval::", "endif::"]
-                        .iter()
-                        .any(|d| l.starts_with(d));
-                    if directive && l.trim_end().ends_with(']') {
-                        format!("\\{l}")
-                    } else {
-                        l.to_string()
-                    }
-                })
-                .collect();
-            // Without `-callouts`, a line that ends `<1>` becomes a callout.
-            out.push_str(&format!(
-                "\n[subs=\"-callouts\"]\n{fence}\n{}\n{fence}\n",
-                body.join("\n")
-            ));
+            out.push_str(&literal_block(&note.content));
         }
     }
     out
+}
+
+/// Note content as a literal block that AsciiDoc does not interpret.
+fn literal_block(content: &str) -> String {
+    // A fence longer than any run of dots that starts a content line,
+    // so the content can never close its own block.
+    let longest = content
+        .lines()
+        .map(|l| l.chars().take_while(|c| *c == '.').count())
+        .max()
+        .unwrap_or(0);
+    let fence = ".".repeat(longest.max(3) + 1);
+    // The preprocessor runs inside a literal block too. A leading
+    // backslash makes it print a directive line as text.
+    // snip: a content line that already starts `\include::` loses
+    // that backslash when rendered; the raw view still shows it.
+    let body: Vec<String> = content
+        .trim_end_matches('\n')
+        .lines()
+        .map(|l| {
+            let directive = ["include::", "ifdef::", "ifndef::", "ifeval::", "endif::"]
+                .iter()
+                .any(|d| l.starts_with(d));
+            if directive && l.trim_end().ends_with(']') {
+                format!("\\{l}")
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    // Without `-callouts`, a line that ends `<1>` becomes a callout.
+    format!(
+        "\n[subs=\"-callouts\"]\n{fence}\n{}\n{fence}\n",
+        body.join("\n")
+    )
 }
 
 /// Text on one line: an empty value reads `Untitled`, line breaks become spaces.
