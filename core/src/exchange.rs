@@ -259,7 +259,9 @@ pub fn to_asciidoc(notebook: &Notebook, group_by: Option<&str>) -> String {
             .get_note(id)
             .map(|n| one_line(&n.title))
             .unwrap_or_else(|| "Unknown".to_string());
-        format!("<<n-{id},{}>>", title.replace(">>", "> >"))
+        // `>` goes out as a character reference, so no run of `>` in a title
+        // can close the cross-reference early.
+        format!("<<n-{id},{}>>", title.replace('>', "&#62;"))
     };
     let xrefs = |ids: &[NoteId]| -> String {
         let mut ids: Vec<&NoteId> = ids.iter().collect();
@@ -334,9 +336,29 @@ pub fn to_asciidoc(notebook: &Notebook, group_by: Option<&str>) -> String {
                 .max()
                 .unwrap_or(0);
             let fence = ".".repeat(longest.max(3) + 1);
+            // The preprocessor runs inside a literal block too. A leading
+            // backslash makes it print a directive line as text.
+            // snip: a content line that already starts `\include::` loses
+            // that backslash when rendered; the raw view still shows it.
+            let body: Vec<String> = note
+                .content
+                .trim_end_matches('\n')
+                .lines()
+                .map(|l| {
+                    let directive = ["include::", "ifdef::", "ifndef::", "ifeval::", "endif::"]
+                        .iter()
+                        .any(|d| l.starts_with(d));
+                    if directive && l.trim_end().ends_with(']') {
+                        format!("\\{l}")
+                    } else {
+                        l.to_string()
+                    }
+                })
+                .collect();
+            // Without `-callouts`, a line that ends `<1>` becomes a callout.
             out.push_str(&format!(
-                "\n{fence}\n{}\n{fence}\n",
-                note.content.trim_end_matches('\n')
+                "\n[subs=\"-callouts\"]\n{fence}\n{}\n{fence}\n",
+                body.join("\n")
             ));
         }
     }
@@ -374,6 +396,24 @@ mod tests {
         }
         nb.link_notes(a, b).unwrap();
         (nb, a, b)
+    }
+
+    #[test]
+    fn asciidoc_view_keeps_hostile_text_literal() {
+        let mut nb = Notebook::new("Test");
+        let a = nb.create_note("Vec<Vec<Vec<T>>> parsing");
+        let b = nb.create_note("Beta");
+        nb.get_note_mut(&b).unwrap().content =
+            "ifdef::x[]\nkept <1>\nendif::[]\ninclude::secret.adoc[]\ninclude:: not a directive"
+                .into();
+        nb.link_notes(b, a).unwrap();
+        let view = to_asciidoc(&nb, None);
+        assert!(view.contains(&format!(
+            "links:: <<n-{a},Vec<Vec<Vec<T&#62;&#62;&#62; parsing>>\n"
+        )));
+        assert!(view.contains(
+            "[subs=\"-callouts\"]\n....\n\\ifdef::x[]\nkept <1>\n\\endif::[]\n\\include::secret.adoc[]\ninclude:: not a directive\n....\n"
+        ));
     }
 
     #[test]

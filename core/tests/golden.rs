@@ -79,6 +79,7 @@ attr status:: todo
 position:: 10, 20
 links:: <<n-22222222-2222-4222-8222-222222222222,Beta>>
 
+[subs=\"-callouts\"]
 ....
 First golden note
 ....
@@ -88,6 +89,7 @@ First golden note
 
 linked-from:: <<n-11111111-1111-4111-8111-111111111111,Alpha>>
 
+[subs=\"-callouts\"]
 ....
 Second golden note
 ....

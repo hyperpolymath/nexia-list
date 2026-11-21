@@ -34,12 +34,13 @@ just maps check    # exit 1 when a committed view is out of date
 
 `just check` runs `just maps check`.
 
-In another repository, call the command from a nexia-list checkout:
+In another repository, run the command from that repository and give the
+path of a nexia-list checkout, so the notebook and view paths are its own:
 
 [source,sh]
 ----
-cargo run -q -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind > docs/maps/NAME.nexia.adoc
-cargo run -q -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind --check docs/maps/NAME.nexia.adoc
+cargo run -q --manifest-path /path/to/nexia-list/Cargo.toml -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind > docs/maps/NAME.nexia.adoc
+cargo run -q --manifest-path /path/to/nexia-list/Cargo.toml -p nexia-core --bin nexia-export -- docs/maps/NAME.nexia.json --group-by kind --check docs/maps/NAME.nexia.adoc
 ----
 
 Exit codes: `0` current, `1` out of date, `2` the notebook cannot be read or
