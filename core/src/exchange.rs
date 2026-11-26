@@ -385,13 +385,16 @@ fn is_directive(line: &str) -> bool {
         .any(|rest| !target(rest).contains(char::is_whitespace))
 }
 
-/// Text on one line: an empty value reads `Untitled`, line breaks become spaces.
+/// Text on one line: an empty value reads `Untitled`, line breaks become
+/// spaces. `{` goes out as a character reference, so Asciidoctor never reads
+/// notebook text as an attribute reference such as `{docdir}`.
 fn one_line(s: &str) -> String {
     let flat = s.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.is_empty() {
         "Untitled".to_string()
     } else {
-        flat
+        // snip: notes order by this escaped text, so `{` sorts as `&`.
+        flat.replace('{', "&#123;")
     }
 }
 
@@ -434,6 +437,14 @@ mod tests {
         assert!(view.contains(
             "[subs=\"-callouts\"]\n....\n\\ifdef::x[]\nkept <1>\n\\endif::[]\n\\include::secret.adoc[]\ninclude:: not a directive[]\nifdef::a b[]\n....\n"
         ));
+
+        // An attribute reference in a title stays text, in the heading and in a link label.
+        let c = nb.create_note("Read {nexia-notes}");
+        nb.link_notes(b, c).unwrap();
+        let view = to_asciidoc(&nb, None);
+        assert!(view.contains("== Read &#123;nexia-notes}\n"));
+        assert!(view.contains(&format!("<<n-{c},Read &#123;nexia-notes}}>>")));
+        assert!(view.contains("== Beta\n"));
     }
 
     #[test]
