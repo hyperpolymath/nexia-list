@@ -229,6 +229,183 @@ fn xml_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// Render the notebook as one deterministic AsciiDoc document, so that a
+/// reader with no nexia-list (a person in a forge, or a coding agent) can read
+/// a committed notebook as text. The same notebook always gives the same
+/// bytes: notes are ordered by group, then title, then id, and nothing
+/// time-dependent is written.
+///
+/// With `group_by`, notes are put under one `==` section per value of that
+/// attribute; notes that lack it come last. Each note carries an `[[n-<id>]]`
+/// anchor, and links are cross-references to those anchors, so duplicate
+/// titles stay unambiguous. Note content goes into a literal block and is
+/// never interpreted as markup.
+///
+/// This is a one-way view. Canvas size, agents and timestamps are left out.
+pub fn to_asciidoc(notebook: &Notebook, group_by: Option<&str>) -> String {
+    let group_of = |n: &Note| -> Option<String> {
+        group_by
+            .and_then(|key| n.attributes.get(key))
+            .map(attribute_text)
+    };
+    let mut notes: Vec<(Option<String>, &Note)> =
+        notebook.all_notes().map(|n| (group_of(n), n)).collect();
+    notes.sort_by(|(ga, a), (gb, b)| {
+        (ga.is_none(), ga, &a.title, a.id).cmp(&(gb.is_none(), gb, &b.title, b.id))
+    });
+
+    let xref = |id: &NoteId| -> String {
+        let title = notebook
+            .get_note(id)
+            .map(|n| one_line(&n.title))
+            .unwrap_or_else(|| "Unknown".to_string());
+        // `>` goes out as a character reference, so no run of `>` in a title
+        // can close the cross-reference early.
+        format!("<<n-{id},{}>>", title.replace('>', "&#62;"))
+    };
+    let xrefs = |ids: &[NoteId]| -> String {
+        let mut ids: Vec<&NoteId> = ids.iter().collect();
+        ids.sort_by_key(|id| (notebook.get_note(id).map(|n| n.title.as_str()), **id));
+        ids.into_iter().map(xref).collect::<Vec<_>>().join("; ")
+    };
+
+    let mut out = String::new();
+    out.push_str("// Generated from a nexia-list notebook. Do not edit: change the notebook and regenerate.\n");
+    out.push_str(&format!("= {}\n", one_line(&notebook.name)));
+    out.push_str(&format!(
+        ":nexia-schema-version: {}\n",
+        notebook.schema_version()
+    ));
+    out.push_str(&format!(":nexia-notes: {}\n", notes.len()));
+    if let Some(key) = group_by {
+        out.push_str(&format!(":nexia-grouped-by: {}\n", one_line(key)));
+    }
+
+    let mut current: Option<&Option<String>> = None;
+    for (group, note) in &notes {
+        if let Some(key) = group_by {
+            if current != Some(group) {
+                current = Some(group);
+                match group {
+                    Some(value) => out.push_str(&format!("\n== {}: {}\n", one_line(key), value)),
+                    None => out.push_str(&format!("\n== no {}\n", one_line(key))),
+                }
+            }
+        }
+        out.push_str(&format!("\n[[n-{}]]\n", note.id));
+        let level = if group_by.is_some() { "===" } else { "==" };
+        out.push_str(&format!("{level} {}\n\n", one_line(&note.title)));
+
+        let mut keys: Vec<&String> = note.attributes.keys().collect();
+        keys.sort();
+        for key in keys {
+            out.push_str(&format!(
+                "attr {}:: {}\n",
+                one_line(key),
+                attribute_text(&note.attributes[key])
+            ));
+        }
+        for (name, formula) in &note.computed {
+            out.push_str(&format!(
+                "computed {}:: {}\n",
+                one_line(name),
+                one_line(formula)
+            ));
+        }
+        if let Some(p) = note.position {
+            out.push_str(&format!("position:: {}, {}\n", p.x, p.y));
+        }
+        if let Some(prototype) = &note.prototype {
+            out.push_str(&format!("prototype:: {}\n", xref(prototype)));
+        }
+        if !note.links.is_empty() {
+            out.push_str(&format!("links:: {}\n", xrefs(&note.links)));
+        }
+        let backlinks = notebook.get_backlinks(&note.id);
+        if !backlinks.is_empty() {
+            out.push_str(&format!("linked-from:: {}\n", xrefs(&backlinks)));
+        }
+
+        if !note.content.is_empty() {
+            out.push_str(&literal_block(&note.content));
+        }
+    }
+    out
+}
+
+/// Note content as a literal block that AsciiDoc does not interpret.
+fn literal_block(content: &str) -> String {
+    // A fence longer than any run of dots that starts a content line,
+    // so the content can never close its own block.
+    let longest = content
+        .lines()
+        .map(|l| l.chars().take_while(|c| *c == '.').count())
+        .max()
+        .unwrap_or(0);
+    let fence = ".".repeat(longest.max(3) + 1);
+    // The preprocessor runs inside a literal block too. A leading
+    // backslash makes it print a directive line as text.
+    // snip: a content line that already starts `\include::` loses
+    // that backslash when rendered; the raw view still shows it.
+    let body: Vec<String> = content
+        .trim_end_matches('\n')
+        .lines()
+        .map(|l| {
+            if is_directive(l) {
+                format!("\\{l}")
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    // Without `-callouts`, a line that ends `<1>` becomes a callout.
+    format!(
+        "\n[subs=\"-callouts\"]\n{fence}\n{}\n{fence}\n",
+        body.join("\n")
+    )
+}
+
+/// True when Asciidoctor reads the line as a preprocessor directive. This
+/// follows its `IncludeDirectiveRx` and `ConditionalDirectiveRx`: the line
+/// ends `]`, and the target before the first `[` has no space at either
+/// end (include, not empty) or no space at all (conditionals).
+fn is_directive(line: &str) -> bool {
+    let line = line.trim_end();
+    if !line.ends_with(']') {
+        return false;
+    }
+    let target = |rest: &'_ str| rest.split('[').next().unwrap_or("").to_string();
+    if let Some(rest) = line.strip_prefix("include::") {
+        let t = target(rest);
+        return !t.is_empty() && t.trim() == t;
+    }
+    ["ifdef::", "ifndef::", "ifeval::", "endif::"]
+        .iter()
+        .filter_map(|d| line.strip_prefix(d))
+        .any(|rest| !target(rest).contains(char::is_whitespace))
+}
+
+/// Text on one line: an empty value reads `Untitled`, line breaks become
+/// spaces. `{` goes out as a character reference, so Asciidoctor never reads
+/// notebook text as an attribute reference such as `{docdir}`.
+fn one_line(s: &str) -> String {
+    let flat = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.is_empty() {
+        "Untitled".to_string()
+    } else {
+        // snip: notes order by this escaped text, so `{` sorts as `&`.
+        flat.replace('{', "&#123;")
+    }
+}
+
+/// An attribute value as text: a string as itself, anything else as JSON.
+fn attribute_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => one_line(s),
+        other => other.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,6 +419,32 @@ mod tests {
         }
         nb.link_notes(a, b).unwrap();
         (nb, a, b)
+    }
+
+    #[test]
+    fn asciidoc_view_keeps_hostile_text_literal() {
+        let mut nb = Notebook::new("Test");
+        let a = nb.create_note("Vec<Vec<Vec<T>>> parsing");
+        let b = nb.create_note("Beta");
+        nb.get_note_mut(&b).unwrap().content =
+            "ifdef::x[]\nkept <1>\nendif::[]\ninclude::secret.adoc[]\ninclude:: not a directive[]\nifdef::a b[]"
+                .into();
+        nb.link_notes(b, a).unwrap();
+        let view = to_asciidoc(&nb, None);
+        assert!(view.contains(&format!(
+            "links:: <<n-{a},Vec<Vec<Vec<T&#62;&#62;&#62; parsing>>\n"
+        )));
+        assert!(view.contains(
+            "[subs=\"-callouts\"]\n....\n\\ifdef::x[]\nkept <1>\n\\endif::[]\n\\include::secret.adoc[]\ninclude:: not a directive[]\nifdef::a b[]\n....\n"
+        ));
+
+        // An attribute reference in a title stays text, in the heading and in a link label.
+        let c = nb.create_note("Read {nexia-notes}");
+        nb.link_notes(b, c).unwrap();
+        let view = to_asciidoc(&nb, None);
+        assert!(view.contains("== Read &#123;nexia-notes}\n"));
+        assert!(view.contains(&format!("<<n-{c},Read &#123;nexia-notes}}>>")));
+        assert!(view.contains("== Beta\n"));
     }
 
     #[test]

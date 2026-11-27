@@ -11,7 +11,7 @@
 //! - `notebook`: A logical collection/subgraph of notes.
 //! - `storage`: File-based JSON persistence.
 //! - `wikilink`: `[[Title]]` reference parsing.
-//! - `exchange`: Markdown-vault / OPML import & export.
+//! - `exchange`: Markdown-vault / OPML import & export, and the AsciiDoc view.
 //! - `agent`: persistent saved queries (the app's namesake feature).
 //! - `lambdadelta` (λδ): the programmable substrate — a small homoiconic Lisp
 //!   whose kernel knows nothing about notes (a host registers notebook

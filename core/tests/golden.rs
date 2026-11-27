@@ -59,3 +59,47 @@ fn golden_fixture_roundtrips() {
         nb.get_note(&beta).unwrap().created_at
     );
 }
+
+/// The AsciiDoc view is a committed artefact in other repositories, so its
+/// bytes are a contract: this pins them for the golden fixture.
+#[test]
+fn golden_fixture_asciidoc_view_is_pinned() {
+    let (nb, report) = Notebook::load_json(FIXTURE).unwrap();
+    assert!(report.is_clean());
+    let expected = "\
+// Generated from a nexia-list notebook. Do not edit: change the notebook and regenerate.
+= Golden
+:nexia-schema-version: 2
+:nexia-notes: 2
+
+[[n-11111111-1111-4111-8111-111111111111]]
+== Alpha
+
+attr status:: todo
+position:: 10, 20
+links:: <<n-22222222-2222-4222-8222-222222222222,Beta>>
+
+[subs=\"-callouts\"]
+....
+First golden note
+....
+
+[[n-22222222-2222-4222-8222-222222222222]]
+== Beta
+
+linked-from:: <<n-11111111-1111-4111-8111-111111111111,Alpha>>
+
+[subs=\"-callouts\"]
+....
+Second golden note
+....
+";
+    assert_eq!(nexia_core::exchange::to_asciidoc(&nb, None), expected);
+
+    // Grouping puts the note that has the attribute first, under its value.
+    let grouped = nexia_core::exchange::to_asciidoc(&nb, Some("status"));
+    let todo = grouped.find("\n== status: todo\n").unwrap();
+    let rest = grouped.find("\n== no status\n").unwrap();
+    assert!(todo < grouped.find("=== Alpha").unwrap());
+    assert!(rest < grouped.find("=== Beta").unwrap() && todo < rest);
+}
