@@ -5,27 +5,19 @@
 
 [tools]
 # Language runtimes
-node = "latest"
-python = "latest"
 rust = "latest"
-go = "latest"
 zig = "latest"
-java = "latest"
 bun = "latest"
 
 # Package managers / task runner
 just = "latest"   # the estate's task runner (Justfile)
 
 # Formatting & linting
-black = "latest"
-ruff = "latest"
-prettier = "latest"
 shfmt = "latest"
 stylua = "latest"
 
 # Build tools
 cmake = "latest"
-make = "latest"
 ninja = "latest"
 
 # ---------------------------------------------------------------------------
@@ -55,9 +47,6 @@ ninja = "latest"
 # ---------------------------------------------------------------------------
 
 [env]
-NODE_ENV = "development"
-PYTHONDONTWRITEBYTECODE = "1"
-PYTHONUNBUFFERED = "1"
 
 # ---------------------------------------------------------------------------
 # REMOVED — an `[alias]` section holding what were clearly meant to be tasks:
@@ -66,8 +55,8 @@ PYTHONUNBUFFERED = "1"
 #     task  = "go-task"
 #     build = "cargo build --release || npm run build || go build"
 #     test  = "cargo test || npm test || go test ./..."
-#     lint  = "ruff check . || prettier --check . || black --check ."
-#     fmt   = "ruff format . || prettier --write . || black ."
+#     lint  = "ruff check . || bunx --bun prettier@3.10.1 --check . || black --check ."
+#     fmt   = "ruff format . || bunx --bun prettier@3.10.1 --write . || black ."
 #
 # mise's `[alias]` maps an alias to a TOOL PLUGIN — it does not define tasks,
 # so none of these ever ran. mise also warns that `[alias]` is deprecated in

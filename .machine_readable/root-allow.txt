@@ -1,2 +1,6 @@
 .hypatia-ignore
 build/                     # build orchestration: guix.scm relocated here (canon 1.2.1 guix-primary template_ref = "build/")
+
+# ─── JS manifest and locks (LANGUAGE-POLICY §1.4) ───────────────────────────
+package.json               # JCS-canonical manifest; pins JS tooling (LANGUAGE-POLICY §1.4)
+bun.lock                   # tier-1 lock, required (LANGUAGE-POLICY §1.4)
